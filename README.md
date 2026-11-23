@@ -8,7 +8,7 @@ Use Python 3.9 or newer with curses and SQLite FTS5 on macOS or Linux. Run the e
 
 ```sh
 export PATH="$PWD:$PATH"
-bvim import "/path/to/RcV(3).txt" --name RcV --license "User supplied"
+bvim import "/path/to/ASV.txt" --name ASV --license "User supplied"
 bvim mat 3:5
 bvim mat 3:5-8
 bvim 'Mat 3:5; John 3:16'
@@ -17,7 +17,7 @@ bvim eternal life
 
 After the first import, `bvim` opens the reader at the last saved location. In the reader, press **l** to reach John 4:1, then **Ctrl-O** to return. Type `/"eternal life"` and press Enter to browse the results. Press **4j** then **Enter** to open the fifth result. **R** reopens the list. Use **ma** to mark a verse and **'a** to return there in a later session. Type **:Jn3:16** then Enter to jump from anywhere. **?** shows the bindings. **q** exits.
 
-Import a second local file under its own ID and enter `:versions RcV,ASV` to compare the same numeric reference. **|** switches between stacked and column layouts. **D** marks wording changes relative to the first edition. Missing verses are labeled individually. A matching numeric reference can correspond to different material across versifications.
+Import a second local file under its own ID and enter `:versions ASV,KJV` to compare the same numeric reference. **|** switches between stacked and column layouts. **D** marks wording changes relative to the first edition. Missing verses are labeled individually. A matching numeric reference can correspond to different material across versifications.
 
 ## CLI reference
 
@@ -45,7 +45,7 @@ bvim 'John 3:16; Rom 8:2' --format md
 bvim search '"eternal life"' --in 'John;1 John;2 John;3 John;Rev' --format jsonl
 bvim search 'faith AND works' --in NT
 bvim search 'NEAR("eternal life" believe, 5)'
-bvim search 'believ*' --versions RcV
+bvim search 'believ*' --versions ASV
 bvim search 'beli?ve*' --mode glob
 bvim search 'begining' --mode fuzzy --tolerance 1 --in Gen
 ```
@@ -92,8 +92,8 @@ The default database is `~/.local/share/bvim/library.db`. Set `BVIM_DB` to choos
 
 ```sh
 python3 -m unittest discover -s tests -v
-RCV_FIXTURE="/path/to/RcV(3).txt" python3 -m unittest discover -s tests -v
-python3 bench.py "/path/to/RcV(3).txt"
+ASV_FIXTURE="/path/to/ASV.txt" python3 -m unittest discover -s tests -v
+python3 bench.py "/path/to/ASV.txt"
 ```
 
 The original prompt-driven reader and external-link actions remain available through `python3 legacy_ui.py` with the original translation/helper modules on PYTHONPATH. The new entry point also accepts `--print` and `--search`; its default search semantics are indexed token expressions.
