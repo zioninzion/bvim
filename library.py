@@ -4,9 +4,11 @@ import hashlib
 import os
 import re
 import sqlite3
+from itertools import chain, islice
 from pathlib import Path
 from typing import NamedTuple
 
+import lexical
 import study
 import styled
 from refs import book, bounds, label, loc, parts, search_ranges
@@ -27,12 +29,33 @@ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT);
 CREATE TABLE IF NOT EXISTS marks(name TEXT PRIMARY KEY,version TEXT COLLATE NOCASE REFERENCES editions ON DELETE CASCADE,k INTEGER);
 """
     + study.SCHEMA
+    + lexical.SCHEMA
     + """
-PRAGMA user_version=3;
+PRAGMA user_version=4;
 COMMIT;
 """
 )
 LINE = re.compile(r"((.+?)[ \t]+([0-9]+):([0-9]+)[ \t])(.*)")
+
+
+def _migrate_substring_index(db):
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        if db.execute("PRAGMA user_version").fetchone()[0] != 4:
+            return
+        try:
+            db.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS substring_idx USING
+                fts5(text,content='verses',content_rowid='rowid',tokenize='trigram')""")
+        except sqlite3.OperationalError as error:
+            if "no such tokenizer" not in str(error):
+                raise
+        else:
+            db.execute("""CREATE TRIGGER IF NOT EXISTS substring_add AFTER INSERT ON verses BEGIN
+                INSERT INTO substring_idx(rowid,text) VALUES(new.rowid,new.text); END""")
+            db.execute("""CREATE TRIGGER IF NOT EXISTS substring_del AFTER DELETE ON verses BEGIN
+                INSERT INTO substring_idx(substring_idx,rowid,text) VALUES('delete',old.rowid,old.text); END""")
+            db.execute("INSERT INTO substring_idx(substring_idx) VALUES('rebuild')")
+        db.execute("PRAGMA user_version=5")
 
 
 def connect(path=None):
@@ -57,8 +80,14 @@ def connect(path=None):
                     "ALTER TABLE editions ADD COLUMN versification TEXT DEFAULT 'unspecified'"
                 )
                 db.execute("PRAGMA user_version=3")
-    elif version != 3:
+    elif version not in (3, 4, 5):
         raise ValueError(f"Unsupported library schema {version}")
+    if 1 <= version <= 3:
+        db.executescript(
+            "BEGIN IMMEDIATE;\n" + lexical.SCHEMA + "\nPRAGMA user_version=4; COMMIT;"
+        )
+    if version < 5:
+        _migrate_substring_index(db)
     return db
 
 
@@ -187,15 +216,23 @@ class SearchCounts(NamedTuple):
         )
 
 
-def _search_filter(versions, query, scope):
-    if not query.strip():
-        raise ValueError("Enter a search expression")
+def _verse_filter(versions, scope):
     clause = ",".join("?" for _ in versions)
     ranges = scopes(scope)
     restriction = " OR ".join("k BETWEEN ? AND ?" for _ in ranges)
+    return f"version IN ({clause}) AND ({restriction})", (
+        *versions,
+        *(x for pair in ranges for x in pair),
+    )
+
+
+def _search_filter(versions, query, scope):
+    if not query.strip():
+        raise ValueError("Enter a search expression")
+    verse_filter, params = _verse_filter(versions, scope)
     source = f"""FROM idx CROSS JOIN verses v ON v.rowid=idx.rowid
-        WHERE idx MATCH ? AND version IN ({clause}) AND ({restriction})"""
-    return source, (query, *versions, *(x for pair in ranges for x in pair))
+        WHERE idx MATCH ? AND {verse_filter}"""
+    return source, (query, *params)
 
 
 def _reference_rows(db, versions, ranges, scope, *, count=False, limit=-1):
@@ -236,6 +273,13 @@ def search_counts(db, versions, query, scope=None):
     ranges = search_ranges(query)
     if ranges is not None:
         return _reference_rows(db, versions, ranges, scope, count=True)
+    literal = _substring_query(query)
+    if literal is not None:
+        return SearchCounts.from_highlights(
+            _search_with_substrings(
+                db, versions, query, scope, -1, True, "reference", literal
+            )
+        )
     source, args = _search_filter(versions, query, scope)
     # One ASCII byte per highlighted region. LIMIT keeps highlight() inside
     # the FTS row query, where SQLite makes the matched positions available.
@@ -252,6 +296,15 @@ def search(db, versions, query, scope=None, limit=-1, highlight=False, sort="exa
     ranges = search_ranges(query)
     if ranges is not None:
         return _reference_rows(db, versions, ranges, scope, limit=limit)
+    literal = _substring_query(query)
+    if literal is not None:
+        return _search_with_substrings(
+            db, versions, query, scope, limit, highlight, sort, literal
+        )
+    return _fts_rows(db, versions, query, scope, limit, highlight, sort)
+
+
+def _fts_rows(db, versions, query, scope, limit, highlight, sort):
     source, args = _search_filter(versions, query, scope)
     body = "highlight(idx,0,?,?)" if highlight else "v.text"
     order = "rank,k,version" if sort == "relevance" else "k,version"
@@ -291,6 +344,116 @@ def search(db, versions, query, scope=None, limit=-1, highlight=False, sort="exa
         return rows
     except sqlite3.OperationalError as e:
         raise ValueError(f"Search failed: {e}") from e
+
+
+def _substring_query(query):
+    plain = query.strip()
+    word_phrase = re.fullmatch(r"\w+(?:[ \t]+\w+)*", plain)
+    if word_phrase and not {"AND", "OR", "NOT"} & set(plain.split()):
+        return query
+    quoted = re.fullmatch(r'"([^"]+)"', plain)
+    if quoted and quoted[1].strip() and quoted[1] != quoted[1].strip():
+        return quoted[1]
+    return None
+
+
+def has_substring_index(db):
+    return (
+        db.execute("SELECT 1 FROM sqlite_master WHERE name='substring_idx'").fetchone()
+        is not None
+    )
+
+
+def _substring_rows(db, versions, literal, scope):
+    restriction, args = _verse_filter(versions, scope)
+    if len(literal) >= 3 and has_substring_index(db):
+        expression = '"' + literal.replace('"', '""') + '"'
+        rows = db.execute(
+            f"""SELECT v.k,v.version,highlight(substring_idx,0,?,?)
+            FROM substring_idx CROSS JOIN verses v ON v.rowid=substring_idx.rowid
+            WHERE substring_idx MATCH ? AND {restriction}
+            ORDER BY v.k,v.version""",
+            (styled.START, styled.END, expression, *args),
+        )
+        for k, version, text in rows:
+            yield k, version, styled.from_fts(text)
+    else:
+        pattern = re.compile(re.escape(literal), re.IGNORECASE)
+        for k, version, text in db.execute(
+            f"SELECT k,version,text FROM verses WHERE {restriction} ORDER BY k,version",
+            args,
+        ):
+            spans = [match.span() for match in pattern.finditer(text)]
+            if spans:
+                yield k, version, styled.MatchedText(text, spans)
+
+
+def _one_gap_rows(db, versions, word, scope):
+    if len(word) < 3 or not word.isalpha():
+        return
+    splits = [(word[:i], word[i:]) for i in range(1, len(word))]
+    expression = "|".join(
+        re.escape(left) + r"[^\W\d_]" + re.escape(right) for left, right in splits
+    )
+    pattern = re.compile(expression, re.IGNORECASE)
+    restriction, args = _verse_filter(versions, scope)
+    if word.isascii() and len(word) < 40:
+        # LIKE narrows the candidates in SQLite. Check letter boundaries in
+        # Python, since LIKE's wildcard can also match whitespace and digits.
+        candidates = ["text LIKE ?" for _ in splits]
+        if {"i", "k", "s"} & set(word.lower()):
+            candidates.append("length(text) != length(cast(text AS blob))")
+        restriction += " AND (" + " OR ".join(candidates) + ")"
+        args += tuple(f"%{left}_{right}%" for left, right in splits)
+    for k, version, text in db.execute(
+        f"SELECT k,version,text FROM verses WHERE {restriction} ORDER BY k,version",
+        args,
+    ):
+        spans = [match.span() for match in pattern.finditer(text)]
+        if spans:
+            yield k, version, styled.MatchedText(text, spans)
+
+
+def _search_with_substrings(
+    db, versions, query, scope, limit, highlight, sort, literal
+):
+    # Leading or trailing whitespace asks for a literal boundary. Plain words
+    # also keep the existing whole-token and implicit AND results.
+    substrings = _substring_rows(db, versions, literal, scope)
+    if literal != literal.strip():
+        rows = substrings if limit < 0 else islice(substrings, limit)
+        return [(k, v, text if highlight else str(text)) for k, v, text in rows]
+    results = {
+        (k, version): text
+        for k, version, text in _fts_rows(
+            db, versions, query, scope, -1, highlight, sort
+        )
+    }
+    for k, version, text in chain(
+        substrings, _one_gap_rows(db, versions, literal, scope)
+    ):
+        key = k, version
+        if key not in results:
+            results[key] = text
+        elif highlight:
+            previous = results[key]
+            spans = sorted(
+                (*getattr(previous, "spans", ()), *getattr(text, "spans", ()))
+            )
+            merged = []
+            for start, end in spans:
+                if merged and start < merged[-1][1]:
+                    merged[-1] = merged[-1][0], max(end, merged[-1][1])
+                else:
+                    merged.append((start, end))
+            results[key] = styled.MatchedText(previous, merged)
+    keys = sorted(results) if sort == "reference" else list(results)
+    if limit >= 0:
+        keys = keys[:limit]
+    return [
+        (k, version, results[k, version] if highlight else str(results[k, version]))
+        for k, version in keys
+    ]
 
 
 def scopes(scope):

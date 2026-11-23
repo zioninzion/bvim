@@ -49,6 +49,42 @@ def load(db, path, name, source, license):
                             raise ValueError(
                                 "Token position and surface must match the installed edition exactly"
                             )
+                    if "tokens" in ref:
+                        if (
+                            position is None
+                            or not ref["tokens"]
+                            or not isinstance(ref["tokens"], list)
+                        ):
+                            raise ValueError(
+                                "Alignment requires an edition position, surface and explicit token IDs"
+                            )
+                        digest = db.execute(
+                            "SELECT digest FROM editions WHERE name=?", (version,)
+                        ).fetchone()[0]
+                        if ref.get("edition_digest") != digest:
+                            raise ValueError("Alignment edition digest mismatch")
+                        for token in ref["tokens"]:
+                            original = db.execute(
+                                """SELECT t.id FROM lex_tokens t JOIN lex_sources s ON s.name=t.source
+                                WHERE t.source=? AND s.digest=? AND t.k=? AND t.token_id=?""",
+                                (token["source"], token["digest"], k, token["id"]),
+                            ).fetchone()
+                            if not original:
+                                raise ValueError(
+                                    "Alignment source digest, verse or token ID mismatch"
+                                )
+                            db.execute(
+                                "INSERT INTO lex_alignments VALUES(?,?,?,?,?,?,?)",
+                                (
+                                    name,
+                                    version,
+                                    digest,
+                                    k,
+                                    position,
+                                    surface,
+                                    original[0],
+                                ),
+                            )
                     db.execute(
                         "INSERT INTO links VALUES(?,?,?,?,?,?,?)",
                         (
@@ -76,12 +112,23 @@ def lookup(db, term):
 
 
 def occurrences(db, term, version, scope=None, morph=None, resource=None):
-    limits = bounds(scope) if scope else (0, 67000000)
+    from library import scopes
+
+    ranges = scopes(scope)
+    restriction = " OR ".join("l.k BETWEEN ? AND ?" for _ in ranges)
     return db.execute(
-        """SELECT DISTINCT l.k FROM links l JOIN verses v ON v.version=l.version AND v.k=l.k
-        WHERE term=? COLLATE NOCASE AND l.version=? AND l.k BETWEEN ? AND ? AND (? IS NULL OR morph=?)
+        f"""SELECT DISTINCT l.k FROM links l JOIN verses v ON v.version=l.version AND v.k=l.k
+        WHERE term=? COLLATE NOCASE AND l.version=? AND ({restriction}) AND (? IS NULL OR morph=?)
         AND (? IS NULL OR resource=?) ORDER BY l.k""",
-        (term, version, *limits, morph, morph, resource, resource),
+        (
+            term,
+            version,
+            *(n for pair in ranges for n in pair),
+            morph,
+            morph,
+            resource,
+            resource,
+        ),
     ).fetchall()
 
 

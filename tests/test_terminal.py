@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 import library
+import lexdata
 
 
 class TerminalTest(unittest.TestCase):
@@ -23,6 +24,11 @@ class TerminalTest(unittest.TestCase):
             source = Path(d) / "sample"
             source.write_text("Gen. 1:1 start\nJohn 3:16 needle")
             library.install(db, source, "T")
+            corpus = "macula-hebrew"
+            fixture = Path(__file__).parent / "fixtures" / "lexical" / (corpus + ".tsv")
+            lexdata.ingest(
+                db, fixture, corpus, lexdata.CATALOG[corpus], lambda line: None
+            )
             master, slave = pty.openpty()
             self.addCleanup(os.close, master)
             self.addCleanup(os.close, slave)
@@ -42,23 +48,39 @@ class TerminalTest(unittest.TestCase):
             )
             self.addCleanup(p.wait)
             self.addCleanup(p.kill)
+
             def wait_for(marker, timeout=5):
                 output = b""
                 deadline = time.monotonic() + timeout
                 while marker not in output:
                     remaining = deadline - time.monotonic()
-                    if remaining <= 0 or not select.select([master], [], [], remaining)[0]:
-                        self.fail(f"Timed out waiting for {marker!r}: {output[-500:]!r}")
+                    if (
+                        remaining <= 0
+                        or not select.select([master], [], [], remaining)[0]
+                    ):
+                        self.fail(
+                            f"Timed out waiting for {marker!r}: {output[-500:]!r}"
+                        )
                     output += os.read(master, 65536)
                 return output
 
+            wait_for(b"NORMAL")
+            os.write(master, b"L")
+            wait_for(b"macula-hebrew")
+            os.write(master, b"w\r")
+            wait_for(b"o010010010012")
+            os.write(master, b"\x1b")
+            wait_for(b"j/k word")
+            os.write(master, b"\x1b")
             wait_for(b"NORMAL")
             os.write(master, b"/")
             wait_for(b"SEARCH")
             started = time.monotonic()
             os.write(master, b"\x1b")
             wait_for(b"NORMAL")
-            self.assertLess(time.monotonic() - started, 0.25, "Standalone Escape was delayed")
+            self.assertLess(
+                time.monotonic() - started, 0.25, "Standalone Escape was delayed"
+            )
 
             os.write(master, b"\x1bOB")  # Down in xterm application cursor mode.
             wait_for(b"John 3:16")
@@ -66,7 +88,7 @@ class TerminalTest(unittest.TestCase):
             wait_for(b"Genesis 1:1")
 
             output = b""
-            os.write(master, b"/wrong query\x15needle extra  \x17\r\rq")
+            os.write(master, b"/wrong query\x15needle extra  \x17\x7f\r\rq")
             end = time.monotonic() + 4
             while p.poll() is None and time.monotonic() < end:
                 if select.select([master], [], [], 0.1)[0]:

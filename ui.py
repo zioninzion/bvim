@@ -7,6 +7,8 @@ import sys
 from contextlib import closing
 from pathlib import Path
 
+import lexcli
+import lexical
 import library
 import study
 from refs import bounds, label, launch_target, names, parts
@@ -37,6 +39,10 @@ def emit(rows, fmt):
 def parser():
     p = argparse.ArgumentParser(prog="bvim", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
+    lexcli.arguments(sub)
+    sub.add_parser(
+        "setup", help="interactively install translations and study resources"
+    )
     sub.add_parser("history")
     sub.add_parser("reindex")
     i = sub.add_parser("import")
@@ -82,13 +88,39 @@ def parser():
     q = sub.add_parser("occurrences")
     q.add_argument("term")
     q.add_argument("--version")
-    q.add_argument("--in", dest="scope")
+    lexcli.filters(q)
+    q.add_argument(
+        "--field",
+        choices=("auto", "lemma", "strong", "surface", "normalized"),
+        default="auto",
+    )
     q.add_argument("--morph")
     return p, sub.choices
 
 
 def run(db, a):
     cmd = a.cmd
+    if cmd in ("tui", "setup"):
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            if cmd == "setup":
+                raise ValueError("Library setup requires an interactive terminal.")
+            raise ValueError(
+                "Interactive reader requires a terminal. Use bvim read REF."
+            )
+        if (
+            cmd == "setup"
+            or not db.execute("SELECT 1 FROM editions LIMIT 1").fetchone()
+        ):
+            from setup_library import run as setup
+
+            if not setup(db) or cmd == "setup":
+                return 0
+    if cmd == "data":
+        return lexcli.data(db, a)
+    if cmd == "lex":
+        return lexcli.analyze(db, a)
+    if cmd == "morph":
+        return lexcli.hits(db, a)
     if cmd == "history":
         row = db.execute("SELECT value FROM settings WHERE key='history'").fetchone()
         for vs, k in json.loads(row[0]) if row else []:
@@ -96,6 +128,8 @@ def run(db, a):
     elif cmd == "reindex":
         with db:
             db.execute("INSERT INTO idx(idx) VALUES('rebuild')")
+            if library.has_substring_index(db):
+                db.execute("INSERT INTO substring_idx(substring_idx) VALUES('rebuild')")
     elif cmd == "import":
         n, warnings = library.install(
             db, a.file, a.name, a.source, a.license, a.replace, a.versification
@@ -113,8 +147,44 @@ def run(db, a):
         rows = study.lookup(db, a.term)
         for row in rows:
             print(*row, sep="\t")
-        return 0 if rows else 1
+        definitions = lexical.definitions(db, a.term)
+        for d in definitions:
+            print(
+                d["strong"],
+                d["lemma"],
+                d["transliteration"],
+                d["derivation"],
+                d["definition"],
+                d["kjv"],
+                d["source"],
+                sep="\t",
+            )
+        stats = lexical.summary(db, a.term)
+        for source, tokens, verses, first, codes in stats:
+            print(
+                f"{source}: {lexcli.count_label(tokens, verses)} · first at {label(first)}"
+            )
+            print("Morphology", ", ".join(sorted(codes.split(","))), sep="\t")
+        return 0 if rows or definitions or stats else 1
     elif cmd == "occurrences":
+        native = (
+            a.field != "auto"
+            or a.source
+            or a.format == "jsonl"
+            or a.count
+            or (not a.version and lexical.has_tokens(db, a.term))
+        )
+        if native:
+            if a.version:
+                raise ValueError(
+                    "--version selects translation-linked annotations. Use --source for original tokens."
+                )
+            return lexcli.hits(db, a)
+        if (
+            not a.version
+            and not db.execute("SELECT 1 FROM editions LIMIT 1").fetchone()
+        ):
+            return lexcli.hits(db, a)
         rows = study.occurrences(
             db, a.term, library.edition(db, a.version), a.scope, a.morph
         )
@@ -163,10 +233,6 @@ def run(db, a):
                 )
         value = " ".join(a.input)
         if cmd == "tui":
-            if not (sys.stdin.isatty() and sys.stdout.isatty()):
-                raise ValueError(
-                    "Interactive reader requires a terminal. Use bvim read REF."
-                )
             if not a.versions:
                 saved = db.execute(
                     "SELECT value FROM settings WHERE key='panes'"

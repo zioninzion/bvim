@@ -1,0 +1,79 @@
+xml:id	ref	class	text	transliteration	after	strongnumberx	gloss	stem	morph	lang	lemma	pos	person	gender	number	state	type
+o010010010011	GEN 1:1!1	prep	בְּ	bə		0871a	in		R	H	בְּ	preposition					
+o010010010012	GEN 1:1!1	noun	רֵאשִׁ֖ית	rēʾšiyṯ	 	7225	beginning		Ncfsa	H	רֵאשִׁית	noun		feminine	singular	absolute	common
+o010010010021	GEN 1:1!2	verb	בָּרָ֣א	bārāʾ	 	1254	he.created	qal	Vqp3ms	H	בָּרָא	verb	third	masculine	singular		qatal
+o010010010031	GEN 1:1!3	noun	אֱלֹהִ֑ים	ʾĕlōhiym	 	0430	God		Ncmpa	H	אֱלֹהִים	noun		masculine	plural	absolute	common
+o010010010041	GEN 1:1!4	om	אֵ֥ת	ʾēṯ	 	0853	(et)		To	H	אֵת	particle					direct object marker
+o010010010051	GEN 1:1!5	art	הַ	ha		1886a	the		Td	H	הַ	particle					definite article
+o010010010052	GEN 1:1!5	noun	שָּׁמַ֖יִם	ššāmayim	 	8064	heavens		Ncmpa	H	שָׁמַיִם	noun		masculine	plural	absolute	common
+o010010010061	GEN 1:1!6	cj	וְ	wə		2050b	and		C	H	וְ	conjunction					
+o010010010062	GEN 1:1!6	om	אֵ֥ת	ʾēṯ	 	0853	(et)		To	H	אֵת	particle					direct object marker
+o010010010071	GEN 1:1!7	art	הָ	hā		1886a	the		Td	H	הַ	particle					definite article
+o010010010072	GEN 1:1!7	noun	אָֽרֶץ	ʾāreṣ:	׃	0776	earth		Ncbsa	H	אֶרֶץ	noun		both	singular	absolute	common
+o010010050011	GEN 1:5!1	cj	וַ	wa		2050b	and		C	H	וְ	conjunction					
+o010010050012	GEN 1:5!1	verb	יִּקְרָ֨א	yyiqrāʾ	 	7121	he.called	qal	Vqw3ms	H	קָרָא	verb	third	masculine	singular		wayyiqtol
+o010010050021	GEN 1:5!2	noun	אֱלֹהִ֤ים	ʾĕlōhiym	׀	0430	God		Ncmpa	H	אֱלֹהִים	noun		masculine	plural	absolute	common
+o010010050031	GEN 1:5!3	prep	לָ	lā		3807a	(to)		Rd	H	לְ	preposition					
+o010010050031ה	GEN 1:5!3	art		–		1886a	the		Td	H	הַ	particle					definite article
+o010010050032	GEN 1:5!3	noun	אוֹר֙	ʾôr	 	0216	light		Ncbsa	H	אוֹר	noun		both	singular	absolute	common
+o010010050041	GEN 1:5!4	noun	י֔וֹם	yôm	 	3117	day		Ncmsa	H	יוֹם	noun		masculine	singular	absolute	common
+o010010050051	GEN 1:5!5	cj	וְ	wə		2050b	and		C	H	וְ	conjunction					
+o010010050052	GEN 1:5!5	prep	לַ	la		3807a	(to)		Rd	H	לְ	preposition					
+o010010050052ה	GEN 1:5!5	art		–		1886a	the		Td	H	הַ	particle					definite article
+o010010050053	GEN 1:5!5	noun	חֹ֖שֶׁךְ	ḥōšeḵ	 	2822	darkness		Ncmsa	H	חֹשֶׁךְ	noun		masculine	singular	absolute	common
+o010010050061	GEN 1:5!6	verb	קָ֣רָא	qārāʾ	 	7121	he.called	qal	Vqp3ms	H	קָרָא	verb	third	masculine	singular		qatal
+o010010050071	GEN 1:5!7	noun	לָ֑יְלָה	lāyəlâ	 	3915	night		Ncmsa	H	לַיְלָה	noun		masculine	singular	absolute	common
+o010010050081	GEN 1:5!8	cj	וַֽ	wa		2050b	and		C	H	וְ	conjunction					
+o010010050082	GEN 1:5!8	verb	יְהִי	yəhî-	־	1961	it.was	qal	Vqw3ms	H	הָיָה	verb	third	masculine	singular		wayyiqtol
+o010010050091	GEN 1:5!9	noun	עֶ֥רֶב	ʿereḇ	 	6153	evening		Ncmsa	H	עֶרֶב	noun		masculine	singular	absolute	common
+o010010050101	GEN 1:5!10	cj	וַֽ	wa		2050b	and		C	H	וְ	conjunction					
+o010010050102	GEN 1:5!10	verb	יְהִי	yəhî-	־	1961	it.was	qal	Vqw3ms	H	הָיָה	verb	third	masculine	singular		wayyiqtol
+o010010050111	GEN 1:5!11	noun	בֹ֖קֶר	ḇōqer	 	1242	morning		Ncmsa	H	בֹּקֶר	noun		masculine	singular	absolute	common
+o010010050121	GEN 1:5!12	noun	י֥וֹם	yôm	 	3117	day		Ncmsa	H	יוֹם	noun		masculine	singular	absolute	common
+o010010050131	GEN 1:5!13	num	אֶחָֽד	ʾeḥāḏ:	׃פ	0259	one		Acmsa	H	אֶחָד	adjective		masculine	singular	absolute	cardinal number
+o010010110011	GEN 1:11!1	cj	וַ	wa		2050b	and		C	H	וְ	conjunction					
+o010010110012	GEN 1:11!1	verb	יֹּ֣אמֶר	yyōʾmer	 	0559	he.said	qal	Vqw3ms	H	אָמַר	verb	third	masculine	singular		wayyiqtol
+o010010110021	GEN 1:11!2	noun	אֱלֹהִ֗ים	ʾĕlōhiym	 	0430	God		Ncmpa	H	אֱלֹהִים	noun		masculine	plural	absolute	common
+o010010110031	GEN 1:11!3	verb	תַּֽדְשֵׁ֤א	taḏəšēʾ	 	1876	let.it.sprout	hiphil	Vhj3fs	H	דָּשָׁא	verb	third	feminine	singular		jussive
+o010010110041	GEN 1:11!4	art	הָ	hā		1886a	the		Td	H	הַ	particle					definite article
+o010010110042	GEN 1:11!4	noun	אָ֨רֶץ֙	ʾāreṣ	 	0776	earth		Ncbsa	H	אֶרֶץ	noun		both	singular	absolute	common
+o010010110051	GEN 1:11!5	noun	דֶּ֔שֶׁא	dešeʾ	 	1877	vegetation		Ncmsa	H	דֶּשֶׁא	noun		masculine	singular	absolute	common
+o010010110061	GEN 1:11!6	noun	עֵ֚שֶׂב	ʿēśeḇ	 	6212	plant[s]		Ncmsa	H	עֵשֶׂב	noun		masculine	singular	absolute	common
+o010010110071	GEN 1:11!7	verb	מַזְרִ֣יעַ	mazriyᵃʿ	 	2232	[which].bears.seed	hiphil	Vhrmsa	H	זָרַע	verb		masculine	singular	absolute	participle active
+o010010110081	GEN 1:11!8	noun	זֶ֔רַע	zeraʿ	 	2233	seed		Ncmsa	H	זֶרַע	noun		masculine	singular	absolute	common
+o010010110091	GEN 1:11!9	noun	עֵ֣ץ	ʿēṣ	 	6086	tree[s]		Ncmsc	H	עֵץ	noun		masculine	singular	construct	common
+o010010110101	GEN 1:11!10	noun	פְּרִ֞י	pəriy	 	6529	of.fruit		Ncmsa	H	פְּרִי	noun		masculine	singular	absolute	common
+o010010110111	GEN 1:11!11	verb	עֹ֤שֶׂה	ʿōśeh	 	6213	producing	qal	Vqrmsa	H	עָשָׂה	verb		masculine	singular	absolute	participle active
+o010010110121	GEN 1:11!12	noun	פְּרִי֙	pərî	 	6529	fruit		Ncmsa	H	פְּרִי	noun		masculine	singular	absolute	common
+o010010110131	GEN 1:11!13	prep	לְ	lə		3807a	to		R	H	לְ	preposition					
+o010010110132	GEN 1:11!13	noun	מִינ֔			4327	kind		Ncmsc	H	מִין	noun		masculine	singular	construct	common
+o010010110133	GEN 1:11!13	pron	וֹ		 	2050c	its		Sp3ms	H	הוּא	suffix	third	masculine	singular		pronominal
+o010010110141	GEN 1:11!14	rel	אֲשֶׁ֥ר	ʾăšer	 	0834	which		Tr	H	אֲשֶׁר	particle					relative
+o010010110151	GEN 1:11!15	noun	זַרְע			2233	seed		Ncmsc	H	זֶרַע	noun		masculine	singular	construct	common
+o010010110152	GEN 1:11!15	pron	וֹ		־	2050c	its		Sp3ms	H	הוּא	suffix	third	masculine	singular		pronominal
+o010010110161	GEN 1:11!16	prep	ב֖			0871a	[is].in		R	H	בְּ	preposition					
+o010010110162	GEN 1:11!16	pron	וֹ		 	2050c	it		Sp3ms	H	הוּא	suffix	third	masculine	singular		pronominal
+o010010110171	GEN 1:11!17	prep	עַל	ʿal-	־	5921	on		R	H	עַל	preposition					
+o010010110181	GEN 1:11!18	art	הָ	hā		1886a	the		Td	H	הַ	particle					definite article
+o010010110182	GEN 1:11!18	noun	אָ֑רֶץ	ʾāreṣ	 	0776	earth		Ncbsa	H	אֶרֶץ	noun		both	singular	absolute	common
+o010010110191	GEN 1:11!19	cj	וַֽ	wa		2050b	and		C	H	וְ	conjunction					
+o010010110192	GEN 1:11!19	verb	יְהִי	yəhî-	־	1961	it.was	qal	Vqw3ms	H	הָיָה	verb	third	masculine	singular		wayyiqtol
+o010010110201	GEN 1:11!20	adv	כֵֽן	ḵēn:	׃	3651	so		D	H	כֵּן	adverb					
+o070090410011	JDG 9:41!1	cj	וַ	wa		2050b	and		C	H	וְ	conjunction					
+o070090410012	JDG 9:41!1	verb	יֵּ֥שֶׁב	yyēšeḇ	 	3427	he.dwelt	qal	Vqw3ms	H	יָשַׁב	verb	third	masculine	singular		wayyiqtol
+o070090410021	JDG 9:41!2	noun	אֲבִימֶ֖לֶךְ	ʾăḇîmeleḵ	 	0040	Abimelech		Np	H	אֲבִימֶלֶךְ	noun					proper
+o070090410031	JDG 9:41!3	prep	בָּ	bā		0871a	at.(the)		R	H	בְּ	preposition					
+o070090410032	JDG 9:41!3	noun	ארוּמָ֑ה		 	1886a|0725	Arumah		Np	H	אֲרוּמָה	noun					proper
+o070090410041	JDG 9:41!4	cj	וַ	wa		2050b	and		C	H	וְ	conjunction					
+o070090410042	JDG 9:41!4	verb	יְגָ֧רֶשׁ	yəḡāreš	 	1644	he.drove.out	piel	Vpw3ms	H	גָּרַשׁ	verb	third	masculine	singular		wayyiqtol
+o070090410051	JDG 9:41!5	noun	זְבֻ֛ל	zəḇul	 	2083	Zebul		Np	H	זְבֻל	noun					proper
+o070090410061	JDG 9:41!6	om	אֶת	ʾeṯ-	־	0853	(et)		To	H	אֵת	particle					direct object marker
+o070090410071	JDG 9:41!7	noun	גַּ֥עַל	gaʿal	 	1603	Gaal		Np	H	גַּעַל	noun					proper
+o070090410081	JDG 9:41!8	cj	וְ	wə		2050b	and		C	H	וְ	conjunction					
+o070090410082	JDG 9:41!8	om	אֶת	ʾeṯ-	־	0853	(et)		To	H	אֵת	particle					direct object marker
+o070090410091	JDG 9:41!9	noun	אֶחָ֖י			0251	brothers		Ncmpc	H	אָח	noun		masculine	plural	construct	common
+o070090410092	JDG 9:41!9	pron	ו		 	2050c	his		Sp3ms	H	הוּא	suffix	third	masculine	singular		pronominal
+o070090410101	JDG 9:41!10	prep	מִ	mi		4480	from		R	H	מִן	preposition					
+o070090410102	JDG 9:41!10	verb	שֶּׁ֥בֶת	ššeḇeṯ	 	3427	dwelling	qal	Vqc	H	יָשַׁב	verb					infinitive construct
+o070090410111	JDG 9:41!11	prep	בִּ	bi		0871a	at		R	H	בְּ	preposition					
+o070090410112	JDG 9:41!11	noun	שְׁכֶֽם	šəḵem:	׃	7927a	Shechem		Np	H	שְׁכֶם	noun					proper

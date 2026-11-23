@@ -35,3 +35,26 @@ Reproduce with `python3 bench.py FILE [--legacy-modules DIR]` in the checkout. E
 | Follow contextual entry and return | 5 | 3 | 3 | 2 | 0.76 | Exact origin restored |
 
 The chapter key saves the seven input events needed for the equivalent absolute jump. Direct G crossing the entire edition saves repeated book/chapter navigation. The command prompt deliberately retains one acceptance keystroke for abbreviated or fuzzy passage choices. Following a contextual entry saves twelve events compared with entering the headword in this fixture. The extra entry-selection step permits multiple scholarly sources and makes the selected evidence visible. These workflow measurements compare interaction costs; they do not establish how often a reader performs each task.
+
+## Original-language study
+
+Measured with `python3 bench.py --lexical` on the M1 Pro above, using the complete MACULA Nestle 1904 and WLC corpora, both dictionaries and the private RcV edition. Times are milliseconds. A fresh connection starts with an empty SQLite connection cache. The OS file cache was allowed to operate normally. Warm figures are medians of 100 iterations on the same connection.
+
+| Operation | John 1:1 first | John warm | Genesis 1:1 first | Genesis warm |
+|---|---:|---:|---:|---:|
+| Retrieve all tokens, parse morphology, join definitions | 0.553 | 0.154 | 0.460 | 0.103 |
+| Lemma definitions for λόγος or רֵאשִׁית | 3.244 | 0.134 | 7.393 | 0.035 |
+| Open pane, prepare filter, render to 24 × 80 terminal stub | 1.065 | 0.450 | 0.830 | 0.321 |
+| Adjacent-token movement and redraw | | 0.072 | | 0.063 |
+| Fresh CLI process through JSONL export | 51.687 | 46.509 | 49.925 | 47.289 |
+
+The CLI row measures the first invocation and the median of five subsequent fresh processes. Pane timing excludes physical terminal I/O. The separate PTY test exercises actual curses input, UTF-8 Hebrew output, detail selection, Escape and return to the reader.
+
+A full install from already downloaded, checksum-verified inputs initially measured 2.71 seconds for Nestle 1904 and 10.11 seconds for WLC. Network time varies independently. The installed four resources and RcV occupy about 197 MiB together. An independent install exercises the optional SBLGNT edition. The full-corpus acceptance test checks exact resource coverage, the real Greek and Hebrew dictionaries, and the Nestle G3056 concordance of 331 tokens in 318 verses. The included verse extracts make ordinary test runs independent of the network.
+
+To repeat the complete integration suite, place the five unmodified pinned upstream files in a directory named by `BVIM_LEX_FILES`, using the corresponding resource ID as each filename. The catalog and `data status` record full URLs and SHA-256 values. The full test installs into a temporary database.
+
+```sh
+BVIM_LEX_FILES=/path/to/pinned-files RCV_FIXTURE=/path/to/RcV.txt python3 -m unittest discover -s tests -v
+python3 bench.py --lexical
+```

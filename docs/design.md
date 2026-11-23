@@ -16,6 +16,9 @@ The highest-impact slice is native import, direct read, indexed search, keyboard
 | library.py | Schema negotiation, streaming transactions, edition selection, ordered reads, FTS and restricted corpora. |
 | patterns.py | Explicit regex, glob and edit-distance scans. |
 | study.py | Source-specific entries and edition-linked evidence, validated surface positions, occurrence lists. |
+| lexdata.py | Revision and digest catalog, staged downloads, validated TSV/JSON dictionary adapters, atomic installation. |
+| lexical.py | Additive schema, source-token identities, lemma and morphology indexes, definition joins, bounded occurrence windows. |
+| lexcli.py, lexpane.py | Command formats and a verse-local curses overlay. Reader state owns edition selection, search and jump history. |
 | reader.py | Canonical cursor, bounded verse-body cache, jump stacks, named marks, live prompts, comparison and selection. |
 | layout.py | Terminal-cell wrapping, column fallback and token differences. |
 | ui.py | CLI command parsing, pipeline formats, translation management and TUI entry. |

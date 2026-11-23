@@ -25,7 +25,7 @@ Job|
 Psalms|Ps Psa Psalm
 Proverbs|Prov Pr
 Ecclesiastes|Eccl Ecc
-Song of Songs|SS Song Canticles SongOfSolomon
+Song of Songs|SS SOS Song Canticles SongOfSolomon
 Isaiah|Isa Is
 Jeremiah|Jer
 Lamentations|Lam
@@ -68,8 +68,10 @@ James|Jas
 1 John|1Jn 1Jhn
 2 John|2Jn 2Jhn
 3 John|3Jn 3Jhn
-Jude|
+Jude|Jud
 Revelation|Rev Re""".splitlines()
+
+SINGLE_CHAPTER_BOOKS = {31, 57, 63, 64, 65}
 
 
 def key(name):
@@ -121,6 +123,15 @@ def label(k):
     return f"{names[b]} {c}:{v}"
 
 
+def scope_reference(value, k):
+    b, c, _ = parts(k)
+    chapter = names[b] if b in SINGLE_CHAPTER_BOOKS else f"{names[b]} {c}"
+    shorthand = {".": names[b], "..": chapter}
+    return ";".join(
+        shorthand.get(part.strip(), part.strip()) for part in value.split(";")
+    )
+
+
 def normalize_reference(s):
     """Expand a trailing chapter, verse, and optional end verse written with spaces."""
     match = re.fullmatch(
@@ -142,13 +153,17 @@ def bounds(s):
             raise ValueError("Reversed passage")
         return first, last
     m = re.fullmatch(
-        r"([1-3]?\s*[A-Za-z][A-Za-z ._-]*?)\s*(?:(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–—]\s*(?:(\d+)\s*[:.]\s*)?(\d+))?)?)?",
+        r"([1-3]?\s*[A-Za-z][A-Za-z ._-]*?)\s*(?:(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–—]\s*(?:(\d+)\s*[:.]\s*)?(\d+))?|\s*[-–—]\s*(\d+))?)?",
         s.strip(),
     )
     if not m:
         raise ValueError(f"Invalid reference {s!r}. Try John 3:16-4:2.")
-    name, c, v, ec, ev = m.groups()
+    name, c, v, ec, ev, short_end = m.groups()
     b = book(name)
+    if c and v is None and b in SINGLE_CHAPTER_BOOKS:
+        c, v, ev = "1", c, short_end
+    elif short_end:
+        raise ValueError(f"Specify a chapter and verse for {names[b]} ranges")
     first = loc(b, int(c or 0), int(v or 0))
     last = loc(b, int(ec or c or 999), int(ev or v or 999))
     if last < first:

@@ -6,15 +6,20 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import webbrowser
 from bisect import bisect_left
 from functools import lru_cache, partial
+from pathlib import Path
 
+import lexical
 import study
 import styled
+import themes
 from layout import columns, differences, display_wrap
 from layout import width as cell_width
 from library import SearchCounts, edition, passage, scopes, search, search_counts
+from listnav import ListNavigation
 from refs import (
     bounds,
     choices,
@@ -23,31 +28,17 @@ from refs import (
     names,
     normalize_reference,
     parts,
+    scope_reference,
 )
 
-HELP = [
-    "j/k or arrows  next/previous verse     10j  move ten verses",
-    "l/h  next/previous chapter     ]/[  next/previous book",
-    "gg/G  first/last verse     16G  verse 16 in this chapter",
-    "Ctrl-D/U  half screen     Ctrl-F/B  full screen (verses)",
-    ":Jn3:16 or :16  jump     Tab  complete suggested book",
-    "/  find text     arrows  preview     Enter  browse results     Enter again  open",
-    "/Jn 3:16,18; Rom 8:1  find multiple references",
-    "Search history: Ctrl-P older, Ctrl-N newer. / resumes your last query.",
-    "In / and : prompts, Ctrl-W deletes the preceding word. Ctrl-U clears the line",
-    "n/N  next/previous hit     R  reopen results",
-    "Ctrl-O/Tab  previous/next jump     ma / 'a  set/recall mark a",
-    "v  select verses     y  copy with references     #  toggle numbers",
-    ":versions A,B  compare     :use B  switch     :lookup TERM  study",
-    ":scope REF limits searches; :scope clears it. :sort exact, relevance or reference",
-    "Command prompt: arrows choose a suggestion, Tab inserts it, Enter opens",
-    "w/b  select next/previous word in first edition     Enter  word evidence",
-    "Bible Hub: x  verse lexicon     p  parallel translations (browser)",
-    "Enter  entries linked to verse     :occ TERM  browse linked passages",
-    "|  stacked/columns     D  wording differences     z  spacing     H  headings",
-    "J/K  scroll wrapped lines within current verse     q  quit",
-]
 ENTER = ("\n", "\r", "KEY_ENTER")
+BIBLE_HUB_SECTIONS = {
+    "lex": "text",
+    "lexicon": "text",
+    "par": "parallel",
+    "parallel": "parallel",
+}
+NAVIGATION_LIMIT = 100
 
 
 class State:
@@ -58,6 +49,7 @@ class State:
         self.scope = None
         self.sort = "exact"
         self.back, self.forward = [], []
+        self.undo_locations, self.redo_locations = [], []
         self.hits, self.hit = [], 0
         self.result_summary = ""
         self.highlights = {}
@@ -130,6 +122,68 @@ class State:
             dst.append((self.versions, self.k))
             self.restore(src.pop())
 
+    def load_navigation(self):
+        settings = dict(
+            self.db.execute(
+                "SELECT key,value FROM settings WHERE key IN ('navigation_history','history')"
+            )
+        )
+        saved = json.loads(settings.get("navigation_history", "{}"))
+        if not saved:
+            legacy = json.loads(settings.get("history", "[]"))
+            saved = {"back": legacy[:-1], "current": legacy[-1] if legacy else None}
+        installed = {
+            name.casefold(): name
+            for (name,) in self.db.execute("SELECT name FROM editions")
+        }
+
+        def available(location):
+            if not isinstance(location, list) or len(location) != 2:
+                return None
+            versions, key = location
+            if not versions or not isinstance(versions, list) or type(key) is not int:
+                return None
+            if any(
+                not isinstance(v, str) or v.casefold() not in installed
+                for v in versions
+            ):
+                return None
+            versions = tuple(installed[v.casefold()] for v in versions)
+            if any(
+                next(passage(self.db, version, (key, key)), None)
+                for version in versions
+            ):
+                return versions, key
+            return None
+
+        for name in ("back", "forward", "undo_locations", "redo_locations"):
+            targets = getattr(self, name)
+            for location in saved.get(name, [])[-NAVIGATION_LIMIT:]:
+                target = available(location)
+                if target is not None:
+                    targets.append(target)
+        current = available(saved.get("current"))
+        if current is not None and current != (self.versions, self.k):
+            self.back.append(current)
+            self.undo_locations.append(current)
+            self.forward.clear()
+            self.redo_locations.clear()
+
+    def save_navigation(self):
+        current = self.versions, self.k
+        saved = {
+            name: getattr(self, name)[-NAVIGATION_LIMIT:]
+            for name in ("back", "forward", "undo_locations", "redo_locations")
+        }
+        saved["current"] = current
+        self.db.executemany(
+            "INSERT OR REPLACE INTO settings VALUES(?,?)",
+            (
+                ("navigation_history", json.dumps(saved)),
+                ("history", json.dumps([*self.back, current][-NAVIGATION_LIMIT:])),
+            ),
+        )
+
     def _rows(self, versions, k):
         return [
             (v, next((text for _, text in passage(self.db, v, (k, k))), "[missing]"))
@@ -169,20 +223,29 @@ class State:
             sort=self.sort,
         )
 
-    def search_history(self):
+    def prompt_history(self, setting):
         row = self.db.execute(
-            "SELECT value FROM settings WHERE key='search_history'"
+            "SELECT value FROM settings WHERE key=?", (setting,)
         ).fetchone()
         return json.loads(row[0]) if row else []
 
-    def remember_search(self, query):
+    def remember_prompt(self, setting, text):
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
-            recent = [query, *(q for q in self.search_history() if q != query)]
+            recent = [
+                text,
+                *(item for item in self.prompt_history(setting) if item != text),
+            ]
             self.db.execute(
-                "INSERT OR REPLACE INTO settings VALUES('search_history', ?)",
-                (json.dumps(recent[:100]),),
+                "INSERT OR REPLACE INTO settings VALUES(?, ?)",
+                (setting, json.dumps(recent[:100])),
             )
+
+    def search_history(self):
+        return self.prompt_history("search_history")
+
+    def remember_search(self, query):
+        self.remember_prompt("search_history", query)
 
     def preview(self, query):
         limit = 101
@@ -206,12 +269,31 @@ class State:
             (k, v): text for k, v, text in hits if isinstance(text, styled.MatchedText)
         }
 
-    def linked_verses(self, term, resource=None):
+    def linked_verses(self, term, resource=None, *, original=False):
         version = self.versions[0]
+        if original or (resource is None and lexical.has_tokens(self.db, term)):
+            return lexical.passage_hits(self.db, term, version, self.scope)
         return [
             (k, version, self.rows((version,), k)[0][1])
-            for (k,) in study.occurrences(self.db, term, version, resource=resource)
+            for (k,) in study.occurrences(
+                self.db, term, version, scope=self.scope, resource=resource
+            )
         ]
+
+    def set_scope(self, value):
+        value = scope_reference(value or "", self.k)
+        scopes(value)
+        self.scope = value or None
+
+    def selected_text(self):
+        first, last = sorted(
+            (self.anchor if self.anchor is not None else self.i, self.i)
+        )
+        return "\n".join(
+            f"{label(key)} [{version}] {text}"
+            for key in self.keys[first : last + 1]
+            for version, text in self.rows(self.versions, key)
+        )
 
     def accept(self, i):
         if self.hits:
@@ -241,9 +323,10 @@ def completions(state, buf):
         return []
     commands = [
         c + " "
-        for c in ("versions", "use", "lookup", "occ", "scope", "sort")
+        for c in ("versions", "use", "lookup", "occ", "scope", "sort", "theme")
         if c.startswith(buf.casefold())
     ]
+    commands.extend(c for c in BIBLE_HUB_SECTIONS if c.startswith(buf.casefold()))
     return commands + [names[i] + " " for i in choices(buf)[:8]]
 
 
@@ -260,6 +343,7 @@ def open_reader(db, versions, ref):
                 if end == len(state.keys) or state.keys[end] != limits[1]:
                     raise ValueError(f"Unavailable endpoint {label(limits[1])}")
                 state.anchor = end
+    state.load_navigation()
     # ncurses reads this during initialization to distinguish Esc from arrow keys.
     os.environ.setdefault("ESCDELAY", "10")
     try:
@@ -272,10 +356,7 @@ def open_reader(db, versions, ref):
                 "INSERT OR REPLACE INTO settings VALUES('panes',?)",
                 (json.dumps(state.versions),),
             )
-            db.execute(
-                "INSERT OR REPLACE INTO settings VALUES('history',?)",
-                (json.dumps([*state.back, (state.versions, state.k)][-100:]),),
-            )
+            state.save_navigation()
             db.execute(
                 "INSERT OR REPLACE INTO settings VALUES(?,?)",
                 ("last:" + state.versions[0], str(state.k)),
@@ -285,6 +366,94 @@ def open_reader(db, versions, ref):
 
 class Heading(str):
     """A section label drawn independently of the verse selection."""
+
+
+HELP_SECTIONS = (
+    (
+        "Normal shortcuts",
+        (
+            ("j/k, ↑/↓", "Move by verse. Add a count, such as 10j."),
+            ("h/l, [ / ]", "Move by chapter or book."),
+            (
+                "gg / G, 16G",
+                "Go to the first or last verse, or to verse 16 in this chapter.",
+            ),
+            ("Ctrl-D/U, Ctrl-F/B", "Move a half or full screen."),
+            ("J/K", "Scroll within a wrapped verse."),
+            (
+                "Ctrl-O / Ctrl-I",
+                "Go back or forward through jumps. Tab also goes forward.",
+            ),
+            ("u / Ctrl-R", "Undo or redo cursor movement."),
+            ("ma / 'a", "Set or recall mark a."),
+            ("/, :", "Open the search or command prompt."),
+            ("n/N, R", "Go to the next or previous hit, or reopen results."),
+            ("v, y, e", "Select verses, copy them, or open a copy in Vim."),
+            ("w/b, Enter", "Select a word or open linked study entries."),
+            ("L", "Open offline Greek or Hebrew analysis."),
+            ("#, H, z", "Toggle verse numbers, headings, or spacing."),
+            ("|, D", "Switch comparison layout or show wording differences."),
+            ("?, Esc, q", "Open help, cancel, or quit."),
+        ),
+    ),
+    (
+        "Prompt controls",
+        (
+            ("↑/↓, Ctrl-P/N", "Recall older or newer commands and searches."),
+            ("Ctrl-W / Ctrl-U", "Delete the preceding word or clear the prompt."),
+            ("Ctrl-F/B", "Move through search previews or command suggestions."),
+            ("Tab", "Insert the selected command suggestion."),
+            (
+                "Enter",
+                "Run a command. In search, focus results, then press Enter again to open a hit.",
+            ),
+            ("Esc", "Close the prompt."),
+            ("/Jn 3:16,18; Rom 8:1", "Find several references in one search."),
+            (
+                "Result and study lists",
+                "Use j/k, counts, gg/G, page keys, and u/Ctrl-R.",
+            ),
+        ),
+    ),
+    (
+        "Colon commands",
+        (
+            (":Jn 3:16, :16", "Jump to a reference or a verse in the current chapter."),
+            (
+                ":scope, :sc",
+                "Limit searches and concordance. Use . for this book, .. for this chapter, or no argument to clear.",
+            ),
+            (":sort", "Choose exact, relevance, or reference order."),
+            (":use ID", "Switch translation."),
+            (":versions A,B", "Compare translations at the current verse."),
+            (":lookup TERM", "Look up a dictionary or lexical entry."),
+            (":occ TERM", "Browse occurrences or linked verses."),
+            (":lex / :lexicon", "Open the current verse on Bible Hub’s lexicon."),
+            (
+                ":par / :parallel",
+                "Open the current verse on Bible Hub’s parallel page.",
+            ),
+            (":theme / :th", "Choose a color theme."),
+        ),
+    ),
+)
+HELP = [row for title, bindings in HELP_SECTIONS for row in (Heading(title), *bindings)]
+HELP_STARTS = [index for index, row in enumerate(HELP) if isinstance(row, Heading)]
+
+
+def help_lines(item, width):
+    if isinstance(item, Heading):
+        yield item
+        return
+    keys, description = item
+    if width < 55:
+        yield from display_wrap(keys, width)
+        for line in display_wrap(description, max(1, width - 2)):
+            yield "  " + line
+        return
+    gutter = 24
+    for index, line in enumerate(display_wrap(description, width - gutter)):
+        yield (keys.ljust(gutter) if index == 0 else " " * gutter) + line
 
 
 def verse_lines(s, i, width, numbers, changes, headings, parallel, expanded, word=None):
@@ -386,22 +555,46 @@ def draw_passage(s, put, height, offset, render):
     return visible, scroll_lines
 
 
-def match_style():
-    attr = curses.A_BOLD | curses.A_UNDERLINE
-    word_attr = curses.A_BOLD
+def edit_in_vim(win, db, text):
+    vim = shutil.which("vim")
+    if not vim:
+        raise ValueError("Vim is unavailable on PATH")
+    library_path = Path(db.execute("PRAGMA database_list").fetchone()[2])
+    edits = library_path.parent / "edits"
+    edits.mkdir(mode=0o700, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="bvim-",
+        suffix=".txt",
+        dir=edits,
+        delete=False,
+    ) as draft:
+        draft.write(text + "\n")
+    curses.def_prog_mode()
+    curses.endwin()
     try:
-        if curses.has_colors():
-            curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_YELLOW)
-            attr |= curses.color_pair(1)
-            curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_CYAN)
-            word_attr |= curses.color_pair(2)
-    except curses.error:
-        pass
-    return attr, word_attr
+        subprocess.run([vim, draft.name], check=True)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError(f"Vim failed. Editable copy: {draft.name}") from error
+    finally:
+        curses.reset_prog_mode()
+        win.clearok(True)
+    return f"Editable copy: {draft.name}"
 
 
 def interact(win, s, initial_query=""):
-    match_attr, word_attr = match_style()
+    saved_theme = s.db.execute(
+        "SELECT value FROM settings WHERE key='theme'"
+    ).fetchone()
+    theme_name = (
+        saved_theme[0]
+        if saved_theme and saved_theme[0] in themes.OPTIONS
+        else themes.DEFAULT
+    )
+    palette = themes.styles(theme_name)
+    if palette.background:
+        win.bkgd(" ", palette.background)
     preview_counts = None
     recent = s.search_history()
     last_query = recent[0] if recent else ""
@@ -433,6 +626,7 @@ def interact(win, s, initial_query=""):
     parent_study = None
     numbers = True
     preferred_word = None
+    list_mode, list_items = None, None
     parallel = changes = expanded = False
     headings = True
     while True:
@@ -450,21 +644,22 @@ def interact(win, s, initial_query=""):
         def put(y, line, attr=0, height=height, width=width):
             if 0 <= y < height:
                 try:
-                    win.addnstr(y, 0, line, max(0, width - 1), attr)
+                    win.addnstr(y, 0, line, max(0, width - 1), palette.row(attr))
+                    match_attr, word_attr = palette.match, palette.word
                     for start, end in getattr(line, "spans", ()):
                         x = cell_width(line[:start])
                         match = line[start:end]
                         overlay = (
                             match_attr
                             if match_attr & curses.A_COLOR
-                            else attr | match_attr
+                            else palette.row(attr | match_attr)
                         )
                         win.addnstr(y, x, match, len(match), overlay)
                     for start, end in getattr(line, "selected", ()):
                         selection = (
                             word_attr
                             if word_attr & curses.A_COLOR
-                            else word_attr | (attr ^ curses.A_REVERSE)
+                            else palette.row(word_attr | (attr ^ curses.A_REVERSE))
                         )
                         win.addnstr(
                             y,
@@ -498,23 +693,34 @@ def interact(win, s, initial_query=""):
         )
         visible = 0
         y = 1
-        if mode in ("HELP", "STUDY", "SEARCH", "RESULTS"):
+        if mode in ("HELP", "STUDY", "SEARCH", "RESULTS", "THEME"):
             lines = HELP if mode == "HELP" else items
-            for i in range(idx, len(lines)):
+            if mode != list_mode or lines is not list_items:
+                list_navigation = ListNavigation()
+                list_mode, list_items = mode, lines
+            start = max(0, idx - max(0, (height - 3) // 2)) if mode == "THEME" else idx
+            for i in range(start, len(lines)):
                 item = lines[i]
-                line = (
-                    styled.join((f"{label(item[0])} [{item[1]}] ", item[2]))
-                    if isinstance(item, tuple)
-                    else item
-                )
-                for part in display_wrap(line, max(1, width - 2)):
+                if mode == "HELP":
+                    wrapped_lines = help_lines(item, max(1, width - 2))
+                    attr = curses.A_BOLD if isinstance(item, Heading) else 0
+                else:
+                    line = (
+                        styled.join((f"{label(item[0])} [{item[1]}] ", item[2]))
+                        if isinstance(item, tuple)
+                        else item
+                    )
+                    wrapped_lines = display_wrap(line, max(1, width - 2))
+                    attr = curses.A_REVERSE if i == idx else 0
+                for part in wrapped_lines:
                     if y >= height - 1:
                         break
-                    put(y, part, curses.A_REVERSE if i == idx else 0)
+                    put(y, part, attr)
                     y += 1
                 if y >= height - 1:
                     break
         else:
+            list_mode, list_items = None, None
             render = partial(
                 verse_lines,
                 s,
@@ -531,9 +737,13 @@ def interact(win, s, initial_query=""):
             msg = f"Word {word + 1}: {tokens[word]}   Enter lookup"
         prompt = {"SEARCH": "/", "COMMAND": ":"}.get(mode)
         footer = (
-            prompt + buf + "  " + msg
-            if prompt
-            else msg or pending + count or "? help  : jump  / search"
+            "[ / ] section  j/k scroll  Esc close"
+            if mode == "HELP"
+            else (
+                prompt + buf + "  " + msg
+                if prompt
+                else msg or pending + count or "? help  : jump  / search"
+            )
         )
         put(height - 1, footer, curses.A_BOLD)
         win.refresh()
@@ -543,6 +753,7 @@ def interact(win, s, initial_query=""):
         if key == "KEY_RESIZE":
             continue
         msg = ""
+        previous_location = s.versions, s.k
         try:
             verse_motion = key in (
                 "j",
@@ -561,11 +772,13 @@ def interact(win, s, initial_query=""):
                 "\x02",
                 "\x0f",
                 "\t",
+                "u",
+                "\x12",
                 "n",
                 "N",
             )
             if mode == "NORMAL" and not (
-                verse_motion or key.isdecimal() or key in ("w", "b", "x", "p", *ENTER)
+                verse_motion or key.isdecimal() or key in ("w", "b", "L", "e", *ENTER)
             ):
                 preferred_word = None
             if key == "\x1b":
@@ -580,31 +793,29 @@ def interact(win, s, initial_query=""):
                 s.anchor = None
                 continue
             if (
-                mode in ("HELP", "STUDY", "RESULTS")
+                mode in ("HELP", "STUDY", "RESULTS", "THEME")
                 or mode == "SEARCH"
-                and key in ("KEY_DOWN", "KEY_UP", *ENTER)
+                and key in ("\x06", "\x02", *ENTER)
             ):
                 size = len(HELP) if mode == "HELP" else len(items)
-                if (
-                    mode == "RESULTS"
-                    and len(key) == 1
-                    and key.isascii()
-                    and key.isdecimal()
-                ):
-                    count = (count + key)[:6]
+                if mode == "HELP" and key in ("[", "]"):
+                    if key == "]":
+                        section = min(
+                            len(HELP_STARTS) - 1, bisect_left(HELP_STARTS, idx + 1)
+                        )
+                    else:
+                        section = max(0, bisect_left(HELP_STARTS, idx) - 1)
+                    idx = HELP_STARTS[section]
                     continue
-                step = int(count or 1)
-                count = ""
-                if mode == "RESULTS" and key == "G":
-                    idx = max(0, size - 1)
-                    continue
-                if key in ("j", "KEY_DOWN", "k", "KEY_UP"):
+                if mode != "SEARCH":
+                    position = list_navigation.move(key, idx, size, height - 2)
+                    if position is not None:
+                        idx = position
+                        continue
+                if mode == "SEARCH" and key in ("\x06", "\x02"):
                     idx = max(
                         0,
-                        min(
-                            size - 1,
-                            idx + (step if key in ("j", "KEY_DOWN") else -step),
-                        ),
+                        min(size - 1, idx + (1 if key == "\x06" else -1)),
                     )
                 elif key in ENTER and mode == "SEARCH" and items:
                     s.set_hits(s.find(buf), text_search=True)
@@ -616,14 +827,55 @@ def interact(win, s, initial_query=""):
                     s.accept(idx)
                     msg = s.result_summary
                     mode, offset = "NORMAL", 0
+                elif key == "e" and mode == "RESULTS" and items:
+                    k, version, _ = items[idx]
+                    _, text = s.rows((version,), k)[0]
+                    msg = edit_in_vim(win, s.db, f"{label(k)} [{version}] {text}")
+                elif key in ENTER and mode == "THEME":
+                    theme_name = tuple(themes.OPTIONS)[idx]
+                    replacement = themes.styles(theme_name)
+                    if palette.background or replacement.background:
+                        win.bkgd(" ", replacement.background)
+                    palette = replacement
+                    with s.db:
+                        s.db.execute(
+                            "INSERT OR REPLACE INTO settings VALUES('theme',?)",
+                            (theme_name,),
+                        )
+                    mode, msg = "NORMAL", f"Theme: {theme_name}"
                 elif key in ENTER and mode == "SEARCH" and preview_counts is not None:
                     s.remember_search(buf)
                     last_query = buf
                     msg = "No matching verses"
                 elif key in ENTER and mode == "STUDY" and items:
+                    if (
+                        isinstance(study_terms[idx], dict)
+                        and "alignment" in study_terms[idx]
+                    ):
+                        from lexpane import show
+
+                        target = show(
+                            win,
+                            s.db,
+                            s.k,
+                            study_terms[idx]["alignment"],
+                            version=s.versions[0],
+                            available=s.keys,
+                            scope=s.scope,
+                            set_scope=s.set_scope,
+                            palette=palette,
+                        )
+                        if target is not None:
+                            s.jump(s.versions, target)
+                            mode, offset = "NORMAL", 0
+                        continue
                     parent_study = items, study_terms, idx
-                    term, res = study_terms[idx]
-                    hits = s.linked_verses(term, res)
+                    selected = study_terms[idx]
+                    if isinstance(selected, dict):
+                        hits = s.linked_verses(selected["strong"], original=True)
+                    else:
+                        term, res = selected
+                        hits = s.linked_verses(term, res)
                     s.set_hits(hits)
                     items, idx, mode = hits, 0, "RESULTS"
                     msg = f"{len(hits)} linked verses"
@@ -631,19 +883,27 @@ def interact(win, s, initial_query=""):
                     mode = "NORMAL"
                 continue
             if mode in ("COMMAND", "SEARCH"):
-                if key in ("KEY_DOWN", "KEY_UP") and mode == "COMMAND":
+                if key in ("\x06", "\x02") and mode == "COMMAND":
                     options = completions(s, buf)
                     if options:
                         completion_idx = (
-                            completion_idx + (1 if key == "KEY_DOWN" else -1)
+                            completion_idx + (1 if key == "\x06" else -1)
                         ) % len(options)
                         msg = options[completion_idx] + "  Tab completes"
                     continue
-                if mode == "SEARCH" and key in ("\x10", "\x0e"):
+                key = {"KEY_UP": "\x10", "KEY_DOWN": "\x0e"}.get(key, key)
+                if key in ("\x10", "\x0e"):
                     if not history_choices:
+                        setting = (
+                            "search_history" if mode == "SEARCH" else "command_history"
+                        )
                         history_choices = [
                             buf,
-                            *(q for q in s.search_history() if q != buf),
+                            *(
+                                text
+                                for text in s.prompt_history(setting)
+                                if text != buf
+                            ),
                         ]
                     history_pos = max(
                         0,
@@ -654,14 +914,39 @@ def interact(win, s, initial_query=""):
                     )
                     buf = history_choices[history_pos]
                 elif key in ENTER:
-                    cmd, _, arg = buf.strip().partition(" ")
+                    submitted = buf.strip()
+                    history_pos, history_choices = 0, []
+                    if submitted:
+                        s.remember_prompt("command_history", submitted)
+                    cmd, _, arg = submitted.partition(" ")
                     if cmd in ("versions", "use"):
                         vs = [edition(s.db, v.strip()) for v in arg.split(",")]
                         s.jump(vs, s.k)
-                    elif cmd == "scope":
-                        scopes(arg)
-                        s.scope = arg or None
-                        msg = f"Search scope: {arg or 'all books'}"
+                    elif cmd in BIBLE_HUB_SECTIONS:
+                        if arg.strip():
+                            raise ValueError(f":{cmd} opens the current verse")
+                        book, chapter, verse = parts(s.k)
+                        slug = (
+                            "songs"
+                            if book == 22
+                            else names[book].lower().replace(" ", "_")
+                        )
+                        section = BIBLE_HUB_SECTIONS[cmd]
+                        url = f"https://biblehub.com/{section}/{slug}/{chapter}-{verse}.htm"
+                        if not webbrowser.open_new_tab(url):
+                            msg = f"Could not open browser: {url}"
+                    elif cmd in ("scope", "sc"):
+                        s.set_scope(arg)
+                        msg = f"Search scope: {s.scope or 'all books'}"
+                    elif cmd in ("theme", "th"):
+                        items = [
+                            f"{name} · {description}"
+                            + (" (active)" if name == theme_name else "")
+                            for name, description in themes.OPTIONS.items()
+                        ]
+                        mode, idx = "THEME", tuple(themes.OPTIONS).index(theme_name)
+                        msg = "j/k choose  Enter apply  Esc cancel"
+                        continue
                     elif cmd == "sort":
                         if arg not in ("exact", "relevance", "reference"):
                             raise ValueError(
@@ -673,6 +958,11 @@ def interact(win, s, initial_query=""):
                         entries = study.lookup(s.db, arg)
                         items = [" | ".join(row) for row in entries]
                         study_terms = [(arg, row[0]) for row in entries]
+                        for entry in lexical.definitions(s.db, arg):
+                            items.append(
+                                f"{entry['strong']} · {entry['lemma']} [{entry['source']}] {entry['definition'] or entry['derivation']}"
+                            )
+                            study_terms.append({"strong": entry["strong"]})
                         mode, idx = "STUDY", 0
                         msg = f"{len(items)} entries  Esc returns"
                         continue
@@ -697,9 +987,9 @@ def interact(win, s, initial_query=""):
                         buf = options[completion_idx % len(options)]
                 elif len(key) == 1 and key.isprintable():
                     buf += key
+                if key not in ("\x10", "\x0e"):
+                    history_pos, history_choices = 0, []
                 if mode == "SEARCH":
-                    if key not in ("\x10", "\x0e"):
-                        history_pos, history_choices = 0, []
                     items, idx, preview_counts = [], 0, None
                     if buf.strip():
                         items, preview_counts = s.preview(buf)
@@ -748,17 +1038,26 @@ def interact(win, s, initial_query=""):
                 continue
             n = int(count or 1)
             numbered, count = bool(count), ""
-            if key not in ("J", "K"):
+            if key not in ("J", "K", "L", "e", "u", "\x12"):
                 offset = 0
             if key in ("g", "m", "'"):
                 pending = key
-            elif key in ("x", "p"):
-                book, chapter, verse = parts(s.k)
-                slug = "songs" if book == 22 else names[book].lower().replace(" ", "_")
-                section = "text" if key == "x" else "parallel"
-                url = f"https://biblehub.com/{section}/{slug}/{chapter}-{verse}.htm"
-                if not webbrowser.open_new_tab(url):
-                    msg = f"Could not open browser: {url}"
+            elif key == "L":
+                from lexpane import show
+
+                target = show(
+                    win,
+                    s.db,
+                    s.k,
+                    version=s.versions[0],
+                    available=s.keys,
+                    scope=s.scope,
+                    set_scope=s.set_scope,
+                    palette=palette,
+                )
+                if target is not None:
+                    s.jump(s.versions, target)
+                    offset = 0
             elif key == "q":
                 return
             elif key in ("J", "K"):
@@ -778,6 +1077,21 @@ def interact(win, s, initial_query=""):
                 )
             elif key in ("\x0f", "\t"):
                 s.history(key == "\x0f")
+            elif key in ("u", "\x12"):
+                undoing = key == "u"
+                source, destination = (
+                    (s.undo_locations, s.redo_locations)
+                    if undoing
+                    else (s.redo_locations, s.undo_locations)
+                )
+                if source:
+                    for _ in range(min(n, len(source))):
+                        destination.append((s.versions, s.k))
+                        s.restore(source.pop())
+                    previous_location = None
+                    offset = 0
+                else:
+                    msg = f"No location to {'undo' if undoing else 'redo'}"
             elif key in ("/", ":"):
                 s.anchor = None
                 parent_study = None
@@ -789,8 +1103,8 @@ def interact(win, s, initial_query=""):
                     [],
                     0,
                 )
+                history_pos, history_choices = 0, []
                 if mode == "SEARCH":
-                    history_pos, history_choices = 0, []
                     buf = last_query
                     if buf.strip():
                         items, preview_counts = s.preview(buf)
@@ -817,21 +1131,17 @@ def interact(win, s, initial_query=""):
             elif key == "v":
                 s.anchor = s.i if s.anchor is None else None
                 mode = "VISUAL" if s.anchor is not None else "NORMAL"
+            elif key == "e":
+                msg = edit_in_vim(win, s.db, s.selected_text())
             elif key == "y":
                 tool = next(
                     (v for v in ("pbcopy", "wl-copy", "xclip") if shutil.which(v)), None
                 )
                 if not tool:
                     raise ValueError("Install pbcopy, wl-copy or xclip")
-                a, b = sorted((s.anchor if s.anchor is not None else s.i, s.i))
-                value = "\n".join(
-                    f"{label(k)} [{v}] {t}"
-                    for k in s.keys[a : b + 1]
-                    for v, t in s.rows(s.versions, k)
-                )
                 subprocess.run(
                     [tool] + (["-selection", "clipboard"] if tool == "xclip" else []),
-                    input=value.encode(),
+                    input=s.selected_text().encode(),
                     check=True,
                 )
                 s.anchor, mode, msg = None, "NORMAL", "Copied"
@@ -856,11 +1166,19 @@ def interact(win, s, initial_query=""):
                     for term, res, kind, body, morph, surface in entries
                 ]
                 study_terms = [(row[0], row[1]) for row in entries]
+                if word is not None:
+                    for mapping in lexical.aligned(s.db, s.versions[0], s.k, word + 1):
+                        items.append(
+                            f"Original token {mapping[1]} [{mapping[0]}] · alignment: {mapping[2]}"
+                        )
+                        study_terms.append({"alignment": mapping})
                 preferred_word = None
                 mode, idx, msg = (
                     "STUDY",
                     0,
-                    f"{len(items)} linked entries  Enter references  Esc returns",
+                    f"{len(items)} linked entries  Enter inspect  Esc returns"
+                    if items
+                    else "No linked annotations for this selection · Esc then L for source verse",
                 )
         except (
             ValueError,
@@ -869,3 +1187,7 @@ def interact(win, s, initial_query=""):
             webbrowser.Error,
         ) as error:
             msg = str(error)
+        finally:
+            if previous_location is not None and previous_location != (s.versions, s.k):
+                s.undo_locations.append(previous_location)
+                s.redo_locations.clear()

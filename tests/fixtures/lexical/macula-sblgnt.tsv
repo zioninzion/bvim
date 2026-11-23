@@ -1,0 +1,6 @@
+xml:id	ref	class	type	gloss	text	after	lemma	normalized	strong	morph	person	number	gender	case	tense	voice	mood	degree
+n41001001001	MRK 1:1!1	noun	common	[The] beginning	Ἀρχὴ	 	ἀρχή	Ἀρχὴ	746	N-NSF		singular	feminine	nominative				
+n41001001002	MRK 1:1!2	det		of the	τοῦ	 	ὁ	τοῦ	3588	T-GSN		singular	neuter	genitive				
+n41001001003	MRK 1:1!3	noun	common	gospel	εὐαγγελίου	 	εὐαγγέλιον	εὐαγγελίου	2098	N-GSN		singular	neuter	genitive				
+n41001001004	MRK 1:1!4	noun	proper	of Jesus	Ἰησοῦ	 	Ἰησοῦς	Ἰησοῦ	2424	N-GSM		singular	masculine	genitive				
+n41001001005	MRK 1:1!5	noun	proper	Christ	χριστοῦ	.	Χριστός	χριστοῦ	5547	N-GSM		singular	masculine	genitive				

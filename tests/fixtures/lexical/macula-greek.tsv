@@ -1,0 +1,63 @@
+xml:id	ref	class	type	gloss	text	after	lemma	normalized	strong	morph	person	number	gender	case	tense	voice	mood	degree
+n41001001001	MRK 1:1!1	noun	common	[The] beginning	Ἀρχὴ	 	ἀρχή	Ἀρχή	746	N-NSF		singular	feminine	nominative				
+n41001001002	MRK 1:1!2	det		of the	τοῦ	 	ὁ	τοῦ	3588	T-GSN		singular	neuter	genitive				
+n41001001003	MRK 1:1!3	noun	common	gospel	εὐαγγελίου	 	εὐαγγέλιον	εὐαγγελίου	2098	N-GSN		singular	neuter	genitive				
+n41001001004	MRK 1:1!4	noun	proper	of Jesus	Ἰησοῦ	 	Ἰησοῦς	Ἰησοῦ	2424	N-GSM		singular	masculine	genitive				
+n41001001005	MRK 1:1!5	noun	proper	Christ	Χριστοῦ	 	Χριστός	Χριστοῦ	5547	N-GSM		singular	masculine	genitive				
+n41001001006	MRK 1:1!6	noun	common	Son	Υἱοῦ	 	υἱός	Υἱοῦ	5207	N-GSM		singular	masculine	genitive				
+n41001001007	MRK 1:1!7	noun	common	of God	Θεοῦ	.	θεός	Θεοῦ	2316	N-GSM		singular	masculine	genitive				
+n41014031001	MRK 14:31!1	det		-	ὁ	 	ὁ	ὁ	3588	T-NSM		singular	masculine	nominative				
+n41014031002	MRK 14:31!2	conj		And	δὲ	 	δέ	δέ	1161	CONJ								
+n41014031003	MRK 14:31!3	adv		emphatically	ἐκπερισσῶς	 	ἐκπερισσῶς	ἐκπερισσῶς	1537+4053	ADV								
+n41014031004	MRK 14:31!4	verb		he kept saying	ἐλάλει	 	λαλέω	ἐλάλει	2980	V-IAI-3S	third	singular			imperfect	active	indicative	
+n41014031005	MRK 14:31!5	conj		If	Ἐὰν	 	ἐάν	Ἐάν	1437	COND								
+n41014031006	MRK 14:31!6	verb		it is needful	δέῃ	 	δεῖ	δέῃ	1163	V-PAS-3S	third	singular			present	active	subjunctive	
+n41014031007	MRK 14:31!7	pron	personal	of me	με	 	ἐγώ	με	1473	P-1AS		singular		accusative				
+n41014031008	MRK 14:31!8	verb		to die with	συναποθανεῖν	 	συναποθνῄσκω	συναποθανεῖν	4880	V-2AAN					aorist	active	infinitive	
+n41014031009	MRK 14:31!9	pron	personal	You	σοι	,	σύ	σοι	4771	P-2DS		singular		dative				
+n41014031010	MRK 14:31!10	adv		no	οὐ	 	οὐ	οὐ	3756	PRT-N								
+n41014031011	MRK 14:31!11	adv		not	μή	 	μή	μή	3361	PRT-N								
+n41014031012	MRK 14:31!12	pron	personal	You	σε	 	σύ	σε	4771	P-2AS		singular		accusative				
+n41014031013	MRK 14:31!13	verb		will I deny	ἀπαρνήσομαι	.	ἀπαρνέομαι	ἀπαρνήσομαι	533	V-FDI-1S	first	singular			future	middle	indicative	
+n41014031014	MRK 14:31!14	adv		Likewise	ὡσαύτως	 	ὡσαύτως	ὡσαύτως	5615	ADV								
+n41014031015	MRK 14:31!15	conj		now	δὲ	 	δέ	δέ	1161	CONJ								
+n41014031016	MRK 14:31!16	adv		also	καὶ	 	καί	καί	2532	CONJ								
+n41014031017	MRK 14:31!17	adj		all	πάντες	 	πᾶς	πάντες	3956	A-NPM		plural	masculine	nominative				
+n41014031018	MRK 14:31!18	verb		of them were saying	ἔλεγον	.	λέγω	ἔλεγον	3004	V-IAI-3P	third	plural			imperfect	active	indicative	
+n43001001001	JHN 1:1!1	prep		In [the]	Ἐν	 	ἐν	Ἐν	1722	PREP								
+n43001001002	JHN 1:1!2	noun	common	beginning	ἀρχῇ	 	ἀρχή	ἀρχῇ	746	N-DSF		singular	feminine	dative				
+n43001001003	JHN 1:1!3	verb		was	ἦν	 	εἰμί	ἦν	1510	V-IAI-3S	third	singular			imperfect	active	indicative	
+n43001001004	JHN 1:1!4	det		the	ὁ	 	ὁ	ὁ	3588	T-NSM		singular	masculine	nominative				
+n43001001005	JHN 1:1!5	noun	common	Word	Λόγος	,	λόγος	Λόγος	3056	N-NSM		singular	masculine	nominative				
+n43001001006	JHN 1:1!6	conj		and	καὶ	 	καί	καί	2532	CONJ								
+n43001001007	JHN 1:1!7	det		the	ὁ	 	ὁ	ὁ	3588	T-NSM		singular	masculine	nominative				
+n43001001008	JHN 1:1!8	noun	common	Word	Λόγος	 	λόγος	Λόγος	3056	N-NSM		singular	masculine	nominative				
+n43001001009	JHN 1:1!9	verb		was	ἦν	 	εἰμί	ἦν	1510	V-IAI-3S	third	singular			imperfect	active	indicative	
+n43001001010	JHN 1:1!10	prep		with	πρὸς	 	πρός	πρός	4314	PREP								
+n43001001011	JHN 1:1!11	det		-	τὸν	 	ὁ	τόν	3588	T-ASM		singular	masculine	accusative				
+n43001001012	JHN 1:1!12	noun	common	God	Θεόν	,	θεός	Θεόν	2316	N-ASM		singular	masculine	accusative				
+n43001001013	JHN 1:1!13	conj		and	καὶ	 	καί	καί	2532	CONJ								
+n43001001014	JHN 1:1!14	noun	common	God	Θεὸς	 	θεός	Θεός	2316	N-NSM		singular	masculine	nominative				
+n43001001015	JHN 1:1!15	verb		was	ἦν	 	εἰμί	ἦν	1510	V-IAI-3S	third	singular			imperfect	active	indicative	
+n43001001016	JHN 1:1!16	det		the	ὁ	 	ὁ	ὁ	3588	T-NSM		singular	masculine	nominative				
+n43001001017	JHN 1:1!17	noun	common	Word	Λόγος	.	λόγος	Λόγος	3056	N-NSM		singular	masculine	nominative				
+n45008002001	ROM 8:2!1	det		-	ὁ	 	ὁ	ὁ	3588	T-NSM		singular	masculine	nominative				
+n45008002002	ROM 8:2!2	conj		For	γὰρ	 	γάρ	γάρ	1063	CONJ								
+n45008002003	ROM 8:2!3	noun	common	the law	νόμος	 	νόμος	νόμος	3551	N-NSM		singular	masculine	nominative				
+n45008002004	ROM 8:2!4	det		of the	τοῦ	 	ὁ	τοῦ	3588	T-GSN		singular	neuter	genitive				
+n45008002005	ROM 8:2!5	noun	common	Spirit	Πνεύματος	 	πνεῦμα	Πνεύματος	4151	N-GSN		singular	neuter	genitive				
+n45008002006	ROM 8:2!6	det		of	τῆς	 	ὁ	τῆς	3588	T-GSF		singular	feminine	genitive				
+n45008002007	ROM 8:2!7	noun	common	life	ζωῆς	 	ζωή	ζωῆς	2222	N-GSF		singular	feminine	genitive				
+n45008002008	ROM 8:2!8	prep		in	ἐν	 	ἐν	ἐν	1722	PREP								
+n45008002009	ROM 8:2!9	noun	proper	Christ	Χριστῷ	 	Χριστός	Χριστῷ	5547	N-DSM		singular	masculine	dative				
+n45008002010	ROM 8:2!10	noun	proper	Jesus	Ἰησοῦ	 	Ἰησοῦς	Ἰησοῦ	2424	N-DSM		singular	masculine	dative				
+n45008002011	ROM 8:2!11	verb		has set free	ἠλευθέρωσέν	 	ἐλευθερόω	ἠλευθέρωσεν	1659	V-AAI-3S	third	singular			aorist	active	indicative	
+n45008002012	ROM 8:2!12	pron	personal	you	σε	 	σύ	σε	4771	P-2AS		singular		accusative				
+n45008002013	ROM 8:2!13	prep		from	ἀπὸ	 	ἀπό	ἀπό	575	PREP								
+n45008002014	ROM 8:2!14	det		the	τοῦ	 	ὁ	τοῦ	3588	T-GSM		singular	masculine	genitive				
+n45008002015	ROM 8:2!15	noun	common	law	νόμου	 	νόμος	νόμου	3551	N-GSM		singular	masculine	genitive				
+n45008002016	ROM 8:2!16	det		-	τῆς	 	ὁ	τῆς	3588	T-GSF		singular	feminine	genitive				
+n45008002017	ROM 8:2!17	noun	common	of sin	ἁμαρτίας	 	ἁμαρτία	ἁμαρτίας	266	N-GSF		singular	feminine	genitive				
+n45008002018	ROM 8:2!18	conj		and	καὶ	 	καί	καί	2532	CONJ								
+n45008002019	ROM 8:2!19	det		-	τοῦ	 	ὁ	τοῦ	3588	T-GSM		singular	masculine	genitive				
+n45008002020	ROM 8:2!20	noun	common	of death	θανάτου	.	θάνατος	θανάτου	2288	N-GSM		singular	masculine	genitive				

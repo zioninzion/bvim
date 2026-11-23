@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add first-run library setup with ASV, WEB, BSB, KJV, Darby, YLT, local translation files, and optional MACULA and Strong’s resources. Reopen it with `bvim setup`.
+
+- Add offline Greek, Hebrew and Aramaic token analysis, source-aware concordances, exact morphology and grammatical-category search. Press L to open the active verse and o to follow its lemma.
+- Install checksum-pinned MACULA Nestle 1904, SBLGNT, WLC and Open Scriptures dictionaries with `bvim data`. Schema 4 adds lexical tables and edition-digest-validated alignment links.
+
 - Accept space-separated verse references and inclusive ranges such as `gen 3 2` and `gen 3 4 6`.
 
 - Launch directly into a passage, visual range selection, or search result list with bare command-line arguments.
@@ -14,7 +19,7 @@
 
 - Align wrapped verse text in a separate column beside the verse numbers.
 
-- Open Bible Hub’s verse lexicon with x and parallel translations with p.
+- Open Bible Hub’s verse lexicon with `:lex` or `:lexicon` and parallel translations with `:par` or `:parallel`.
 
 - Keep the preferred word position when moving between verses.
 

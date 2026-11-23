@@ -78,6 +78,17 @@ class ReaderTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bounds(ref)
 
+    def test_single_chapter_references(self):
+        for ref in ("Jud", "Oba", "Phm", "2 Jn", "3 Jn"):
+            self.assertEqual(bounds(f"{ref} 3"), bounds(f"{ref} 1:3"))
+            self.assertEqual(bounds(f"{ref} 3-5"), bounds(f"{ref} 1:3-5"))
+        self.assertEqual(bounds("SOS 2"), bounds("Song of Solomon 2"))
+        self.assertEqual(bounds("Jdg 2"), bounds("Judges 2"))
+        self.assertEqual(
+            self.cli("lex", "Jude", "3").returncode,
+            self.cli("lex", "Jude", "1:3").returncode,
+        )
+
     def test_dotted_references(self):
         self.assertEqual(bounds("1 Cor. 14.26-15.1"), bounds("1Co14:26-15:1"))
         self.assertEqual(
@@ -104,6 +115,125 @@ class ReaderTest(unittest.TestCase):
                         screen.rows[height // 2 + 1],
                         ("John · Chapter 4", curses.A_BOLD),
                     )
+
+    def test_undo_and_redo_reader_navigation(self):
+        cases = [
+            ("2juq", "Gen 1:1"),
+            ("2ju\x12q", "John 3:17"),
+            ("jj2u2\x12q", "John 3:17"),
+            ("2juk\x12q", "John 3:17"),
+            ("2juj\x12q", "John 3:16"),
+            ("j:John 4:1\nuq", "John 3:16"),
+            ("/faith\n\nu\x12q", "John 4:1"),
+            ("j2u:Rev 1:1\n\x1b\x12q", "John 3:16"),
+        ]
+        for keys, expected in cases:
+            with self.subTest(keys=keys), patch.object(curses, "curs_set"):
+                state = State(self.db, ["A"], "Gen 1:1")
+                interact(Screen(keys, (24, 80)), state)
+                self.assertEqual(state.k, bounds(expected)[0])
+
+    def test_search_result_navigation_shortcuts(self):
+        query = "ref: Gen 1:1; John 3:16-17; John 4:1"
+        for keys, expected in (
+            ("Ggg", "Genesis 1:1"),
+            ("2ju\x12", "John 3:17"),
+            ("\x06", "John 3:17"),
+            ("G\x02", "John 3:16"),
+            ("\x04", "John 3:16"),
+        ):
+            with self.subTest(keys=keys), patch.object(curses, "curs_set"):
+                state = State(self.db, ["A"])
+                interact(Screen(keys + "\nq", (4, 90)), state, query)
+                self.assertEqual(label(state.k), expected)
+
+    def test_edit_selected_verses_in_vim(self):
+        def edit_file(args, *, check):
+            self.assertTrue(check)
+            path = Path(args[1])
+            self.assertEqual(args[0], "/tmp/test-vim")
+            self.assertEqual(path.parent, self.path.parent.resolve() / "edits")
+            text = path.read_text()
+            path.write_text(text + "Edited\n")
+
+        state = State(self.db, ["A"], "John 3:16")
+        screen = Screen("evjeq", (20, 100))
+        with (
+            patch("reader.shutil.which", return_value="/tmp/test-vim"),
+            patch("reader.subprocess.run", side_effect=edit_file),
+            patch.object(curses, "def_prog_mode"),
+            patch.object(curses, "endwin"),
+            patch.object(curses, "reset_prog_mode") as resume,
+            patch.object(screen, "clearok", create=True),
+        ):
+            interact(screen, state)
+        files = {
+            path.read_text() for path in (self.path.parent / "edits").glob("*.txt")
+        }
+        self.assertEqual(
+            files,
+            {
+                "John 3:16 [A] eternal life\nEdited\n",
+                "John 3:16 [A] eternal life\nJohn 3:17 [A] life and works\nEdited\n",
+            },
+        )
+        self.assertEqual(resume.call_count, 2)
+        self.assertEqual(state.anchor, state.resolve("John 3:16"))
+        self.assertEqual(label(state.k), "John 3:17")
+        self.assertEqual(state.rows(("A",), state.k)[0][1], "life and works")
+
+    def test_theme_selection_and_persistence(self):
+        state = State(self.db, ["A"], "John 3:16")
+        with patch.object(curses, "has_colors", return_value=False):
+            screen = Screen(":th\nj\x1b:theme\nj\nq", (24, 100))
+            interact(screen, state)
+            self.assertTrue(
+                any(
+                    "high-contrast · Light text on black (active)" in line
+                    for line in screen.output
+                )
+            )
+            self.assertEqual(
+                self.db.execute(
+                    "SELECT value FROM settings WHERE key='theme'"
+                ).fetchone(),
+                ("light",),
+            )
+            screen = Screen(":theme\n\x1bq", (24, 100))
+            interact(screen, State(self.db, ["A"], "John 3:16"))
+            self.assertTrue(
+                any(
+                    "light · Dark text on white (active)" in line
+                    for line in screen.output
+                )
+            )
+        self.assertEqual(label(state.k), "John 3:16")
+
+    def test_help_sections_and_section_navigation(self):
+        state = State(self.db, ["A"], "John 3:16")
+        for size in ((12, 36), (24, 90)):
+            screen = Screen("?]][]\x1bq", size)
+            with patch.object(curses, "curs_set"):
+                interact(screen, state)
+            headings = [
+                row
+                for y, _, row, attr in screen.paint
+                if y == 1
+                and attr & curses.A_BOLD
+                and row in ("Normal shortcuts", "Prompt controls", "Colon commands")
+            ]
+            self.assertEqual(
+                headings,
+                [
+                    "Normal shortcuts",
+                    "Prompt controls",
+                    "Colon commands",
+                    "Prompt controls",
+                    "Colon commands",
+                ],
+            )
+            self.assertTrue(any(":scope, :sc" in line for line in screen.output))
+        self.assertEqual(label(state.k), "John 3:16")
 
     def test_verse_number_gutter(self):
         from reader import verse_lines
@@ -172,6 +302,36 @@ class ReaderTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             library.search(self.db, ["A"], '"')
 
+    def test_partial_search_preserves_spaces_and_exact_term_priority(self):
+        self.f.write_text(
+            "John 1:1 father\nJohn 1:2 a ter and terminal\n"
+            "John 1:3 ter\nJohn 1:4 a ter\nJohn 1:5 someone terminal"
+        )
+        library.install(self.db, self.f, "Partial")
+
+        def records(query):
+            return library.search(self.db, ["Partial"], query, highlight=True)
+
+        self.assertEqual([k % 1000 for k, _, _ in records("ter")], [3, 2, 4, 5, 1])
+        self.assertEqual([k % 1000 for k, _, _ in records(" ter")], [2, 4, 5])
+        self.assertEqual([k % 1000 for k, _, _ in records('" ter"')], [2, 4, 5])
+        self.assertEqual([k % 1000 for k, _, _ in records("ter ")], [2])
+        father = records("ter")[-1][2]
+        self.assertEqual([father[start:end] for start, end in father.spans], ["ther"])
+        self.assertEqual(library.search_counts(self.db, ["Partial"], "ter"), (6, 5))
+        self.assertEqual(library.search_counts(self.db, ["Partial"], " ter"), (4, 3))
+        self.assertIn(
+            b"4 hits in 3 verses",
+            self.cli("search", " ter", "-V", "Partial", "--count").stdout,
+        )
+        self.assertEqual(
+            [
+                k % 1000
+                for k, _, _ in library.search(self.db, ["Partial"], " te", "John 1:4")
+            ],
+            [4],
+        )
+
     def test_command_prompt_word_and_line_editing(self):
         state = State(self.db, ["A"])
         screen = Screen(":wrong command\x15Joh\twrong  \x173.16\nq", (15, 60))
@@ -179,7 +339,7 @@ class ReaderTest(unittest.TestCase):
             interact(screen, state)
         self.assertEqual(label(state.k), "John 3:16")
 
-    def test_biblehub_shortcuts(self):
+    def test_biblehub_commands(self):
         self.f.write_text("Gen 1:1 first\nS.S. 2:3 second\n1 Cor 14:26 third")
         library.install(self.db, self.f, "Links")
         state = State(self.db, ["Links"])
@@ -187,7 +347,8 @@ class ReaderTest(unittest.TestCase):
             patch.object(curses, "curs_set"),
             patch("reader.webbrowser.open_new_tab") as browser,
         ):
-            interact(Screen("xpjxjpq", (16, 60)), state)
+            keys = "xp:le\t\n:par\nj:lexicon\nj:parallel\nq"
+            interact(Screen(keys, (16, 60)), state)
         self.assertEqual(
             [c.args[0] for c in browser.call_args_list],
             [
@@ -203,12 +364,83 @@ class ReaderTest(unittest.TestCase):
             state = State(self.db, ["A"])
             interact(Screen("/life\n\n/\x15works\n\nq", (20, 80)), state)
             state = State(self.db, ["A"])
-            screen = Screen("/\x10\x0e\x15draft\x1b/\x10\x0e\x1bq", (20, 80))
+            keys = [
+                "/",
+                "KEY_UP",
+                "KEY_DOWN",
+                "\x15",
+                *"draft",
+                "\x1b",
+                "/",
+                "\x10",
+                "KEY_DOWN",
+                "\x1b",
+                "q",
+            ]
+            screen = Screen(keys, (20, 80))
             interact(screen, state)
         prompts = [line.strip() for line in screen.output if line.startswith("/")]
         self.assertEqual(prompts[:3], ["/works", "/life", "/works"])
         self.assertEqual(prompts[-3:], ["/draft", "/works", "/draft"])
         self.assertEqual(state.search_history(), ["works", "life"])
+
+    def test_command_history_persists_and_restores_draft(self):
+        with patch.object(curses, "curs_set"):
+            state = State(self.db, ["A"])
+            keys = ":scope John\n:sort reference\n:scope John\n:lookup discarded\x1bq"
+            interact(Screen(keys, (20, 90)), state)
+            db = library.connect(self.path)
+            self.addCleanup(db.close)
+            state = State(db, ["A"])
+            keys = [
+                *":draft",
+                "KEY_UP",
+                "\x10",
+                "KEY_DOWN",
+                "\x0e",
+                "\x1b",
+                ":",
+                "KEY_UP",
+                "\n",
+                "q",
+            ]
+            screen = Screen(keys, (20, 90))
+            interact(screen, state)
+        prompts = [
+            line.split("  ", 1)[0] for line in screen.output if line.startswith(":")
+        ]
+        self.assertIn(
+            [":draft", ":scope John", ":sort reference", ":scope John", ":draft"],
+            [prompts[i : i + 5] for i in range(len(prompts) - 4)],
+        )
+        self.assertEqual(state.scope, "John")
+        self.assertEqual(
+            state.prompt_history("command_history"), ["scope John", "sort reference"]
+        )
+        self.assertEqual(state.search_history(), [])
+
+    def test_navigation_history_survives_reader_restart(self):
+        from reader import open_reader
+
+        def session(keys, ref, start, end):
+            db = library.connect(self.path)
+            try:
+
+                def terminal(run, state, query):
+                    self.assertEqual(label(state.k), start)
+                    run(Screen(keys, (24, 90)), state, query)
+                    self.assertEqual(label(state.k), end)
+
+                with patch("reader.curses.wrapper", side_effect=terminal):
+                    open_reader(db, ["A"], ref)
+            finally:
+                db.close()
+
+        session("j:John 4:1\n\x0fq", "Gen 1:1", "Genesis 1:1", "John 3:16")
+        session("\tuq", "", "John 3:16", "John 3:16")
+        session("\x12q", "", "John 3:16", "John 4:1")
+        session("\x0fq", "", "John 4:1", "John 3:16")
+        session("uq", "Gen 1:1", "Genesis 1:1", "John 3:16")
 
     def test_search_submission_and_result_jump(self):
         for ending, expected in [("j\x1bq", "Genesis 1:1"), ("j\nq", "John 3:17")]:
@@ -330,9 +562,7 @@ class ReaderTest(unittest.TestCase):
             library.search_counts(self.db, ["B", "C"], phrase, "Jn1:2-3"), (4, 2)
         )
         self.assertEqual(state.preview("absent")[1], (0, 0))
-        screen = Screen(
-            [*("/" + phrase), "KEY_DOWN", "\n", "R", "j", "q", "q"], (15, 80)
-        )
+        screen = Screen([*("/" + phrase), "\x06", "\n", "R", "j", "q", "q"], (15, 80))
         with patch.object(curses, "curs_set"):
             interact(screen, state)
         for mode in ("SEARCH", "NORMAL · RESULTS"):
