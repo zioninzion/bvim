@@ -65,9 +65,12 @@ class ReaderTest(unittest.TestCase):
         )
 
     def test_refs(self):
-        for phrase in ("Jn3:16", "John 3:16", "jhn 3 : 16"):
+        for phrase in ("Jn3:16", "John 3:16", "jhn 3 : 16", "John 3 16"):
             self.assertEqual(bounds(phrase), (43003016, 43003016))
         self.assertEqual(bounds("1Co 14:26-15:1"), (46014026, 46015001))
+        self.assertEqual(bounds("gen 3 2"), bounds("Gen 3:2"))
+        self.assertEqual(bounds("gen 3 4 6"), bounds("Gen 3:4-6"))
+        self.assertEqual(bounds("1 Cor. 14 1 4"), bounds("1Co 14:1-4"))
         self.assertEqual(book("S.S."), 22)
         with self.assertRaisesRegex(ValueError, "Suggestions"):
             bounds("Ju")
@@ -244,6 +247,7 @@ class ReaderTest(unittest.TestCase):
         library.install(self.db, self.f, "Launch")
         for args, mode, focus, anchor, hits in [
             (["mat", "3:5"], "NORMAL", "Matthew 3:5", None, 0),
+            (["mat", "3", "5", "7"], "VISUAL", "Matthew 3:5", 2, 0),
             (["mat", "3:5-7"], "VISUAL", "Matthew 3:5", 2, 0),
             (
                 ["mat", "3:5", "1", "Cor", "14:26"],
@@ -257,7 +261,9 @@ class ReaderTest(unittest.TestCase):
         ]:
             screen = Screen("qq" if mode.endswith("RESULTS") else "\x1bq", (20, 80))
 
-            def drive(app, state, query):
+            def drive(
+                app, state, query, anchor=anchor, screen=screen, focus=focus, hits=hits
+            ):
                 self.assertEqual(state.anchor, anchor)
                 app(screen, state, query)
                 self.assertEqual(label(state.k), focus)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accept space-separated verse references and inclusive ranges such as `gen 3 2` and `gen 3 4 6`.
+
 - Launch directly into a passage, visual range selection, or search result list with bare command-line arguments.
 
 - Search for multiple Bible references, ranges, or comma-separated verses in both the reader and CLI.

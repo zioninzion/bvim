@@ -4,18 +4,29 @@ An offline Bible reader for the terminal. Open a passage, follow indexed search 
 
 ## Start reading
 
-Use Python 3.9 or newer with curses and SQLite FTS5 on macOS or Linux. Run the executable from this directory. To make it available as `bvim`, add this directory to PATH. The project name avoids claiming the generic `bible` command. There are no Python package dependencies.
+Use Python 3.9 or newer with curses and SQLite FTS5 on macOS or Linux. From the project directory, add the executable to your shell’s path and import a local translation. There are no Python package dependencies.
 
 ```sh
 export PATH="$PWD:$PATH"
 bvim import "/path/to/ASV.txt" --name ASV --license "User supplied"
-bvim mat 3:5
-bvim mat 3:5-8
-bvim 'Mat 3:5; John 3:16'
-bvim eternal life
 ```
 
-After the first import, `bvim` opens the reader at the last saved location. In the reader, press **l** to reach John 4:1, then **Ctrl-O** to return. Type `/"eternal life"` and press Enter to browse the results. Press **4j** then **Enter** to open the fifth result. **R** reopens the list. Use **ma** to mark a verse and **'a** to return there in a later session. Type **:Jn3:16** then Enter to jump from anywhere. **?** shows the bindings. **q** exits.
+| Run in a terminal | What opens |
+|---|---|
+| `bvim` | Resume the last reading location. |
+| `bvim mat 3:5` | Open Matthew 3:5 in the reader. |
+| `bvim mat 3:5-8` | Center Matthew 3:5 and select verses 5–8. Press `y` to copy the passage with references or Esc to clear the selection. |
+| `bvim 'Mat 3:5; John 3:16'` | Browse those references in the supplied order. Press Enter to open the selected verse. |
+| `bvim eternal life` | Browse text search results. Exact phrases rank ahead of separated terms. |
+
+Quote reference lists containing semicolons so the shell passes the whole list to bvim. The same quoting works for a shell variable:
+
+```sh
+passage='Jn 3:16, 18-21; Rom 8.1-2'
+bvim "$passage"
+```
+
+For a short navigation exercise, run `bvim Jn 3:16`. Press `l` to reach John 4:1 and Ctrl-O to return. Type `ma` to mark John 3:16, then use `'a` to return there in a later session. Press `?` for the key reference and `q` to quit the reader.
 
 Import a second local file under its own ID and enter `:versions ASV,KJV` to compare the same numeric reference. **|** switches between stacked and column layouts. **D** marks wording changes relative to the first edition. Missing verses are labeled individually. A matching numeric reference can correspond to different material across versifications.
 
@@ -50,15 +61,22 @@ bvim search 'beli?ve*' --mode glob
 bvim search 'begining' --mode fuzzy --tolerance 1 --in Gen
 ```
 
-Both `/` and `bvim search` accept reference lists, for example `Jn 3:16, 18-21; Rom 8.1-2`. Enter to browse the results in the requested order, then Enter on a verse to open it. Overlapping references appear once per translation. Use `ref: John; Romans` to search for entire books. A bare book name such as `John` still searches verse text.
+Both `/` and `bvim search` accept reference lists such as `Jn 3:16, 18-21; Rom 8.1-2`. The CLI prints the matching verses in the requested order. Overlapping references appear once per translation. Use `ref: John; Romans` to search for entire books. A bare book name such as `John` still searches verse text.
 
 ### References and search semantics
 
-The canonical book ID runs from Genesis (1) to Revelation (66). Book names, common aliases and unique prefixes ignore case, periods and whitespace. Ambiguous input returns suggestions. Fuzzy suggestions require an explicit completion. A bare book or chapter selects its available rows. Explicit verse endpoints delimit inclusive ranges, including cross-chapter and cross-book ranges. The TUI lands on the first verse of a reference. The reader centers the active verse between the header and footer. Both `John 3.4` and `John 3:4` open the same verse. In the reader, `:3.4` jumps within the current book. A bare number in its command prompt means a verse in the current chapter. Spell out the chapter for single-chapter books, e.g. `Jude 1:5`.
+The canonical book ID runs from Genesis (1) to Revelation (66). Book names, common aliases and unique prefixes ignore case, periods and whitespace. Ambiguous input returns suggestions. Fuzzy suggestions require an explicit completion. A bare book or chapter selects its available rows. Explicit verse endpoints delimit inclusive ranges, including cross-chapter and cross-book ranges. The TUI lands on the first verse of a reference. The reader centers the active verse between the header and footer. Spaces also work: `bvim gen 3 2` opens Genesis 3:2, and `bvim gen 3 4 6` selects Genesis 3:4–6. Both `John 3.4` and `John 3:4` open the same verse. In the reader, `:3.4` jumps within the current book. A bare number in its command prompt means a verse in the current chapter. Spell out the chapter for single-chapter books, e.g. `Jude 1:5`.
 
 By default, a whole-verse match ranks first, followed by contiguous token phrases, then verses containing the words separately. A prefix search prioritizes the complete token, and fuzzy search puts exact words first. Ties follow reference order. Use `:sort exact` to restore this ordering in the reader.
 
 Default search uses SQLite FTS5 unicode61 tokenization. Spaces imply AND. Double quotes delimit a token phrase (case and punctuation can normalize). Uppercase AND, OR, binary NOT, parentheses, trailing prefix stars and FTS5 NEAR groups are supported. NEAR measures intervening tokens and permits either order. `--in` accepts OT, NT, or a semicolon-separated union of references. The explicit regex mode searches verse text with Python’s case-insensitive regex engine. Glob mode matches a whole Unicode word with shell pattern syntax. Fuzzy mode compares a single word using Levenshtein distance 0–3. These three CLI modes scan the chosen range. [FTS5 query syntax](https://sqlite.org/fts5.html#full_text_query_syntax)
+
+### Search in the reader
+
+1. Press `/` to edit the previous query. Ctrl-U clears the line for a fresh search and Ctrl-W deletes the preceding word. Ctrl-P and Ctrl-N recall older and newer queries. The last 100 distinct submitted queries persist across sessions.
+2. Type a word, phrase, or reference list. For an exact phrase, include straight double quotes, as in `"eternal life"`. The preview shows up to 101 rows. The header counts hits across all matching editions and counts each verse reference once. Repeated highlighted regions in a verse count separately. Overlapping FTS matches share one region.
+3. Press Enter to focus the full results list. Use `j`, `k`, or a count such as `4j` to select a row. Press Enter again to open the verse, or Esc to return to the passage you were reading.
+4. In the reader, use `n` and `N` to visit the next or previous matching row. Press `R` to reopen the list. Matching text stays underlined and appears yellow on color terminals.
 
 ### Reader keys
 
@@ -70,7 +88,7 @@ Default search uses SQLite FTS5 unicode61 tokenization. Spaces imply AND. Double
 | Ctrl-D / U, Ctrl-F / B (all with Ctrl) | Half / full screen in visible verse units. |
 | J / K | Scroll within a long wrapped verse. |
 | : | Reference or command. Ctrl-W deletes the preceding word. Ctrl-U clears the line. Arrows choose a suggested completion, Tab inserts it, Enter executes. |
-| / | Live indexed search. Reopening / restores the query, including edits dismissed with Esc in this session. Ctrl-P / Ctrl-N recall older / newer queries. The last 100 distinct submitted queries persist across sessions. Ctrl-W deletes the preceding word. Ctrl-U clears the query. Matches are underlined and highlighted in yellow on color terminals, both in results and while reading. Arrows preview results. Enter finishes typing and focuses the full results list. Use j/k or a count such as 4j, then Enter to open the selected verse. Esc returns to the original passage. The preview shows up to 101 rows. The header counts all hits and distinct verse references in scope. Each highlighted match region counts once per edition, including repeated matches in a verse. Overlapping FTS matches share one highlight. |
+| / | Edit the last query. Arrows preview results, Enter focuses the list, and a second Enter opens the verse. Esc retains the draft for this session. |
 | n / N, R | Next / previous accepted search hit (counts supported), reopen full result list. In a list j/k or arrows move, Enter opens. |
 | Ctrl-O / Ctrl-I | Back / forward across jumps. Tab also sends Ctrl-I in a terminal. Ordinary j/k motion adds no jumps. |
 | m followed by a letter, ' followed by that letter | Set / recall persistent verse mark. |
@@ -92,8 +110,10 @@ The default database is `~/.local/share/bvim/library.db`. Set `BVIM_DB` to choos
 
 ```sh
 python3 -m unittest discover -s tests -v
-ASV_FIXTURE="/path/to/ASV.txt" python3 -m unittest discover -s tests -v
+RCV_FIXTURE="/path/to/RcV(3).txt" python3 -m unittest discover -s tests -v
 python3 bench.py "/path/to/ASV.txt"
 ```
+
+The optional `RCV_FIXTURE` test verifies the known 31,103-verse Recovery Version file and checks its export byte-for-byte. The rest of the suite uses generated test data.
 
 The original prompt-driven reader and external-link actions remain available through `python3 legacy_ui.py` with the original translation/helper modules on PYTHONPATH. The new entry point also accepts `--print` and `--search`; its default search semantics are indexed token expressions.

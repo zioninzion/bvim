@@ -15,7 +15,15 @@ import styled
 from layout import columns, differences, display_wrap
 from layout import width as cell_width
 from library import SearchCounts, edition, passage, scopes, search, search_counts
-from refs import bounds, choices, label, launch_target, names, parts
+from refs import (
+    bounds,
+    choices,
+    label,
+    launch_target,
+    names,
+    normalize_reference,
+    parts,
+)
 
 HELP = [
     "j/k or arrows  next/previous verse     10j  move ten verses",
@@ -84,7 +92,7 @@ class State:
 
     def resolve(self, ref):
         ref = ref.strip()
-        if re.match(r"^\d+\s*[:.]", ref):
+        if re.match(r"^\d+(?:\s*[:.]|\s+\d)", ref):
             ref = names[self.k // 1000000] + " " + ref
         if ref.isdecimal():
             ref = label(self.k).rsplit(":", 1)[0] + ":" + ref
@@ -245,6 +253,7 @@ def open_reader(db, versions, ref):
     if ref:
         limits, query = launch_target(ref)
         if limits is not None:
+            ref = normalize_reference(ref)
             state.i = state.resolve(ref)
             if re.search(r"\d\s*[-–—]", ref):
                 end = bisect_left(state.keys, limits[1])

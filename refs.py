@@ -121,7 +121,19 @@ def label(k):
     return f"{names[b]} {c}:{v}"
 
 
+def normalize_reference(s):
+    """Expand a trailing chapter, verse, and optional end verse written with spaces."""
+    match = re.fullmatch(
+        r"([1-3]?\s*[A-Za-z][A-Za-z ._-]*?\s*)(\d+)\s+(\d+)(?:\s+(\d+))?", s.strip()
+    )
+    if match is None:
+        return s.strip()
+    book_name, chapter, verse, end = match.groups()
+    return f"{book_name}{chapter}:{verse}" + (f"-{end}" if end else "")
+
+
 def bounds(s):
+    s = normalize_reference(s)
     pair = re.fullmatch(r"(.+?\d)\s*[-–—]\s*([1-3]?\s*[A-Za-z].+)", s.strip())
     if pair:
         first = bounds(pair[1])[0]
